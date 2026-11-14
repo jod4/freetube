@@ -254,6 +254,35 @@ nonisolated enum PythonJSBridge {
     except Exception as _e:
         import sys
         print('PythonJSBridge: DenoJsRuntime patch failed:', _e, file=sys.stderr)
+
+    # Preprocessed-player cache (see YtDlpCache.swift): upstream disables it because the files
+    # are large and it has no rotation — we rotate in Swift. Cuts a solve from ~5.5 s to well
+    # under a second on an iPad 7 once a player version has been seen.
+    try:
+        from yt_dlp.extractor.youtube.jsc._builtin.ejs import EJSBaseJCP
+
+        if not getattr(EJSBaseJCP, '_freetube_cache_patched', False):
+            EJSBaseJCP._ENABLE_PREPROCESSED_PLAYER_CACHE = True
+            _orig_bulk_solve = EJSBaseJCP._real_bulk_solve
+
+            def _ft_bulk_solve(self, requests):
+                try:
+                    yield from _orig_bulk_solve(self, requests)
+                except Exception:
+                    # A broken cached preprocessed player would otherwise fail every solve for
+                    # that player version. Drop it so the next attempt re-preprocesses.
+                    for url in {r.input.player_url for r in requests}:
+                        try:
+                            self.ie.cache.store(self._CACHE_SECTION, f'player:{url}', None)
+                        except Exception:
+                            pass
+                    raise
+
+            EJSBaseJCP._real_bulk_solve = _ft_bulk_solve
+            EJSBaseJCP._freetube_cache_patched = True
+    except Exception as _e:
+        import sys
+        print('PythonJSBridge: preprocessed-player cache patch failed:', _e, file=sys.stderr)
     """
 
     // MARK: - 4. Pop extension (subprocess.Popen monkey-patch)

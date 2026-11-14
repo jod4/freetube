@@ -72,6 +72,9 @@ public nonisolated func freetube_yt_dlp(
     ydl_opts["logger"] = makeLogger(name: "MyLogger", log)
     ydl_opts["progress_hooks"] = [makeProgressHook(progress)]
     ydl_opts["js_runtimes"] = PythonObject(["deno": ["path": PythonJSBridge.fakeDenoPath]])
+    // Writable cache dir for the preprocessed-player cache the bridge enables (see `YtDlpCache`).
+    YtDlpCache.prunePreprocessedPlayers()
+    ydl_opts["cachedir"] = PythonObject(YtDlpCache.directory.path)
 
     // Step 4: build the YoutubeDL downloader. `YtDlp.makeYoutubeDL(ydlOpts:)` is `internal` to
     // the package so we can't call it directly; we replicate it by importing the Python yt_dlp
@@ -196,6 +199,8 @@ public nonisolated func freetube_yt_dlp_extract_info(url: String) async throws -
         "youtube": ["player_client=tv_simply,tv_embedded,web_creator,mweb,web_safari,ios,android_vr", "formats=missing_pot"]
     ] as [String: [String]])
     opts["js_runtimes"] = PythonObject(["deno": ["path": PythonJSBridge.fakeDenoPath]])
+    YtDlpCache.prunePreprocessedPlayers()
+    opts["cachedir"] = PythonObject(YtDlpCache.directory.path)
     // CLAUDE.md §15.3: yt-dlp's `YoutubeDL.__init__` runs an ffmpeg version probe
     // (`Popen(['ffmpeg', '-bsfs']).communicate()`). On iOS the YoutubeDL-iOS `Pop` class
     // accepts this argv but `communicate()` deadlocks the embedded Python forever.

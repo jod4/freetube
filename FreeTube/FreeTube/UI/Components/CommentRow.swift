@@ -28,7 +28,7 @@ struct CommentRow: View {
 
                 HStack(spacing: 16) {
                     Button(action: onLike) {
-                        Label("\(comment.likeCount)", systemImage: comment.isLikedByUser ? "hand.thumbsup.fill" : "hand.thumbsup")
+                        Label { Text(verbatim: "\(comment.likeCount)") } icon: { Image(systemName: comment.isLikedByUser ? "hand.thumbsup.fill" : "hand.thumbsup") }
                             .labelStyle(.titleAndIcon)
                             .font(.caption)
                     }

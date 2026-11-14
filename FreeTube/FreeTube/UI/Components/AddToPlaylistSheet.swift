@@ -146,7 +146,7 @@ struct AddToPlaylistSheet: View {
                 .frame(width: 22, height: 22)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(playlist.title.isEmpty ? "(untitled)" : playlist.title)
+                    (playlist.title.isEmpty ? Text("(untitled)") : Text(verbatim: playlist.title))
                         .font(.body)
                         .foregroundStyle(.primary)
                     if playlist.isPrivate {

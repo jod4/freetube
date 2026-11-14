@@ -103,7 +103,7 @@ FreeTube/
 │   │                      # NowPlayingIndicator, SectionHeader, LoadingView
 │   └── Modifiers/         # ErrorToastModifier
 ├── Resources/
-│   ├── Localizable.xcstrings    # en / es / ru / fr / de, 236 keys
+│   ├── Localizable.xcstrings    # en / es / ru / fr / de, 250 keys
 │   ├── core.min.js              # yt-dlp-ejs N/SIG solver (~7 KB, see §15.11)
 │   └── lib.min.js               # meriyah + astring bundle (~152 KB, see §15.11)
 └── Assets.xcassets
@@ -334,9 +334,11 @@ log.error("Stream extraction failed: \(error.localizedDescription, privacy: .pub
 
 ## 14. Localization
 
-- `Localizable.xcstrings` (Apple String Catalog format), 236 keys, fully translated for **en / es / ru / fr / de**. `sourceLanguage: "en"`.
+- `Localizable.xcstrings` (Apple String Catalog format), 250 keys, fully translated for **en / es / ru / fr / de**. `sourceLanguage: "en"`.
 - Add new strings by using `String(localized:)` / `LocalizedStringKey` in code; Xcode's build-time extractor populates the catalog. After a build, open `Localizable.xcstrings` and translate any new `state: "new"` entries.
 - **Non-translatable strings must never enter the catalog. Emit them with `Text(verbatim:)`, not a localizable `Text`.** A string whose entire content is format specifiers (`%@`, `%lld`, `%lld%%`), punctuation/symbols (`•`, `·`, `≈`, `,`), or brand names (`yt-dlp`, `freetube.io`) — with no actual words — has nothing to translate. The root cause is code: `Text("\(x) · \(n)%")` makes SwiftUI treat the literal as a `LocalizedStringKey`, so the extractor auto-adds junk keys like `%@ · %lld%%` on every build. Marking them `shouldTranslate: false` only suppresses *translation* — the key still gets re-added and clutters the catalog. **Fix at the source:** wrap these in `Text(verbatim: "...")` (for `.accessibilityLabel`, pass `Text(verbatim:)` explicitly). Then delete the orphaned keys from `Localizable.xcstrings`; once the code uses `verbatim`, the extractor won't recreate them. Keys removed this way (all now `verbatim` in code): `%@ · %lld%%` (FetchProbeView), `%lld%%` (FetchProbeView/DownloadsScreen), `≈ %@` (FetchProbeView), `• %@` (DownloadsScreen), `%lld %@ • %@` (DownloadsScreen), `%lld` (DownloadsScreen), `%@, %@` (VideoCard accessibility), `yt-dlp` (SettingsScreen header). When you write a new pure-format/symbol/brand string, reach for `Text(verbatim:)` up front so it never reaches the catalog.
+- **Never pass UI copy through a `String` parameter.** `Text(someString)` renders verbatim and skips the catalog — this is how "No downloads", the Library menu, the search prompt, etc. stayed English while their translations sat unused (marked `stale`). Reusable views/helpers take `LocalizedStringKey` (or a `Text`) for copy — see `EmptyStateView`, `SectionHeader` (`init(verbatim:)` for YouTube content), the `menuRow` helpers in `LibraryScreen` / `ChannelScreen`. Non-view code that produces display text (error descriptions, download state messages, count lines) uses `String(localized:)`. A key flagged `extractionState: "stale"` while the literal still exists in code is the tell-tale symptom.
+- Counts use one key per phrase with plural variations (`Text("\(n) videos")` → `%lld videos`), never a hand-built `"video" : "videos"` ternary. Abbreviated numbers go through `Int.compactFormatted` (locale-aware "1,2 Mio.").
 - Pluralization uses Apple's CLDR plural rules through the catalog's variation editor.
 - If you add a string that contains a literal source-file reference (e.g. an internal `ContentView` placeholder), use a clean user-facing value in the translation columns even if the key looks debug-ish.
 

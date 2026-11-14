@@ -44,6 +44,16 @@ struct DownloadsScreen: View {
         case size = "File size"
         case duration = "Duration"
         var id: String { rawValue }
+
+        /// Localized menu label (the raw value is an identifier, not shown to the user).
+        var title: LocalizedStringKey {
+            switch self {
+            case .date: return "Date downloaded"
+            case .title: return "Title"
+            case .size: return "File size"
+            case .duration: return "Duration"
+            }
+        }
     }
 
     /// Active in-flight downloads.
@@ -118,13 +128,13 @@ struct DownloadsScreen: View {
                 }
             }
             .alert(
-                "Delete \(selectedIDs.count) \(selectedIDs.count == 1 ? "video" : "videos")?",
+                Text("Delete \(selectedIDs.count) videos?"),
                 isPresented: $showBulkDeleteConfirmation
             ) {
                 Button("Delete", role: .destructive) { deleteSelected() }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This permanently removes the selected file\(selectedIDs.count == 1 ? "" : "s") from your device.")
+                Text("This permanently removes \(selectedIDs.count) selected files from your device.")
             }
             .alert(
                 "Delete this video?",
@@ -163,7 +173,7 @@ struct DownloadsScreen: View {
         VStack(alignment: .leading, spacing: 2) {
             Text("Saved on device").font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
             if totalCount > 0 {
-                Text(verbatim: "\(totalCount) \(totalCount == 1 ? "video" : "videos") • \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))")
+                (Text("\(totalCount) videos") + Text(verbatim: " • \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -202,7 +212,7 @@ struct DownloadsScreen: View {
         case .downloading(let value):
             VStack(alignment: .leading, spacing: 2) {
                 ProgressView(value: value)
-                Text("\(Int(value * 100))%").font(.caption2).foregroundStyle(.secondary)
+                Text(verbatim: "\(Int(value * 100))%").font(.caption2).foregroundStyle(.secondary)
             }
         case .paused:
             Text("Paused").font(.caption).foregroundStyle(.secondary)
@@ -381,7 +391,7 @@ struct DownloadsScreen: View {
                             }
                         } label: {
                             HStack {
-                                Text(option.rawValue)
+                                Text(option.title)
                                 Spacer()
                                 if sortBy == option {
                                     Image(systemName: sortDescending ? "arrow.down" : "arrow.up")
@@ -433,7 +443,7 @@ struct DownloadsScreen: View {
     /// while still supporting iOS 17. Destructive buttons get a red tint, neutral buttons inherit
     /// the accent color.
     @ViewBuilder
-    private func glassButton(title: String, systemImage: String, role: ButtonRole?, action: @escaping () -> Void) -> some View {
+    private func glassButton(title: LocalizedStringKey, systemImage: String, role: ButtonRole?, action: @escaping () -> Void) -> some View {
         Button(role: role, action: action) {
             HStack(spacing: 6) {
                 Image(systemName: systemImage)

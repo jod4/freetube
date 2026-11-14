@@ -112,7 +112,7 @@ struct HomeScreen: View {
 
             ForEach(model.sections) { section in
                 if let title = section.title {
-                    SectionHeader(title: title)
+                    SectionHeader(verbatim: title)
                         .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 0, trailing: 0))
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)

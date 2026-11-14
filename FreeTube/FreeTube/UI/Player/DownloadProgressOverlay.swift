@@ -10,18 +10,18 @@ struct DownloadProgressOverlay: View {
     var body: some View {
         switch state {
         case .resolving:
-            overlay(label: "Preparing…", progress: nil)
+            overlay(label: Text("Preparing…"), progress: nil)
         case .downloading(let progress, let phase):
             overlay(label: label(for: progress, phase: phase), progress: progress)
         case .failed(let message):
-            overlay(label: message, progress: nil, error: true)
+            overlay(label: Text(verbatim: message), progress: nil, error: true)
         case .idle, .readyToPlay:
             EmptyView()
         }
     }
 
     @ViewBuilder
-    private func overlay(label: String, progress: Double?, error: Bool = false) -> some View {
+    private func overlay(label: Text, progress: Double?, error: Bool = false) -> some View {
         ZStack {
             Color.black.opacity(0.55).ignoresSafeArea()
             VStack(spacing: 12) {
@@ -35,7 +35,7 @@ struct DownloadProgressOverlay: View {
                         .tint(.white)
                         .scaleEffect(1.3)
                 }
-                Text(label)
+                label
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
@@ -55,12 +55,13 @@ struct DownloadProgressOverlay: View {
     /// - "Downloading video 42%" / "Downloading audio 75%" when we know which stream is in flight
     /// - "Processing video…" between phases (yt-dlp switching from video → audio, or post-download mux)
     /// - "Downloading…" as a generic fallback
-    private func label(for progress: Double?, phase: String?) -> String {
-        guard let progress else { return "Processing video…" }
+    private func label(for progress: Double?, phase: String?) -> Text {
+        guard let progress else { return Text("Processing video…") }
         let percent = Int(progress * 100)
-        if let phase, phase == "video" || phase == "audio" {
-            return "Downloading \(phase) \(percent)%"
+        switch phase {
+        case "video": return Text("Downloading video \(percent)%")
+        case "audio": return Text("Downloading audio \(percent)%")
+        default: return Text("Downloading \(percent)%")
         }
-        return "Downloading \(percent)%"
     }
 }

@@ -75,7 +75,7 @@ final class FetchViewModel {
             ? trimmed
             : "https://" + trimmed
         guard URL(string: normalised) != nil else {
-            probeState = .failed(message: "That doesn't look like a URL.", url: trimmed)
+            probeState = .failed(message: String(localized: "That doesn't look like a URL."), url: trimmed)
             return
         }
         probe(url: normalised)
@@ -118,7 +118,7 @@ final class FetchViewModel {
         if let job = URLDownloadManager.shared.jobs[entry.url] {
             switch job.state {
             case .queued:
-                return .downloading(progress: 0, phase: "Queued")
+                return .downloading(progress: 0, phase: String(localized: "Queued"))
             case .downloading(let p, let phase):
                 return .downloading(progress: p, phase: phase)
             case .processing(let msg):

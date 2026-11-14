@@ -147,7 +147,7 @@ enum DownloadCacheLimit: String, CaseIterable, Identifiable {
         case .gb1: return "1 GB"
         case .gb5: return "5 GB"
         case .gb10: return "10 GB"
-        case .unlimited: return "Unlimited"
+        case .unlimited: return String(localized: "Unlimited")
         }
     }
 }

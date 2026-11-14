@@ -11,8 +11,8 @@ struct LoadingView: View {
 
 struct EmptyStateView: View {
     let systemImage: String
-    let title: String
-    let message: String?
+    let title: LocalizedStringKey
+    let message: LocalizedStringKey?
 
     var body: some View {
         VStack(spacing: 8) {

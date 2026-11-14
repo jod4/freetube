@@ -110,33 +110,36 @@ struct ChannelScreen: View {
         )
         menuRow(
             title: "Popular videos",
-            subtitle: "Most viewed first",
+            subtitle: Text("Most viewed first"),
             systemImage: "flame.fill",
             destination: ChannelTabScreen(title: "Popular", kind: .popular, model: model)
         )
         menuRow(
             title: "Latest videos",
-            subtitle: "Newest first",
+            subtitle: Text("Newest first"),
             systemImage: "clock.fill",
             destination: ChannelTabScreen(title: "Latest", kind: .latest, model: model)
         )
         menuRow(
             title: "Shorts",
-            subtitle: tabSubtitle(noun: "short", loaded: details.shorts.items.count, hasMore: details.shorts.continuationToken != nil),
+            subtitle: countText(details.shorts.items.count, hasMore: details.shorts.continuationToken != nil,
+                               plain: { Text("\($0) shorts") }, plus: { Text("\($0)+ shorts") }),
             systemImage: "bolt.fill",
             destination: ChannelTabScreen(title: "Shorts", kind: .shorts, model: model)
         )
         if !details.directs.items.isEmpty {
             menuRow(
                 title: "Live",
-                subtitle: tabSubtitle(noun: "stream", loaded: details.directs.items.count, hasMore: details.directs.continuationToken != nil),
+                subtitle: countText(details.directs.items.count, hasMore: details.directs.continuationToken != nil,
+                                   plain: { Text("\($0) streams") }, plus: { Text("\($0)+ streams") }),
                 systemImage: "dot.radiowaves.left.and.right",
                 destination: ChannelTabScreen(title: "Live", kind: .directs, model: model)
             )
         }
         menuRow(
             title: "Playlists",
-            subtitle: tabSubtitle(noun: "playlist", loaded: details.playlists.items.count, hasMore: details.playlists.continuationToken != nil),
+            subtitle: countText(details.playlists.items.count, hasMore: details.playlists.continuationToken != nil,
+                               plain: { Text("\($0) playlists") }, plus: { Text("\($0)+ playlists") }),
             systemImage: "rectangle.stack.fill",
             destination: ChannelTabScreen(title: "Playlists", kind: .playlists, model: model)
         )
@@ -144,8 +147,8 @@ struct ChannelScreen: View {
 
     @ViewBuilder
     private func menuRow<Destination: View>(
-        title: String,
-        subtitle: String,
+        title: LocalizedStringKey,
+        subtitle: Text,
         systemImage: String,
         destination: Destination
     ) -> some View {
@@ -160,7 +163,7 @@ struct ChannelScreen: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.body)
-                    Text(subtitle)
+                    subtitle
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -171,28 +174,25 @@ struct ChannelScreen: View {
     /// Count line for the three videos-derived tabs. If the channel header gave us an
     /// authoritative total, use it; otherwise fall back to the loaded count with a `+` suffix
     /// when there's more to fetch.
-    private func videosSubtitle(total: Int?, loaded: Int, hasMore: Bool) -> String {
+    private func videosSubtitle(total: Int?, loaded: Int, hasMore: Bool) -> Text {
         if let total {
-            return "\(formattedCount(total)) videos"
+            // Abbreviated totals ("1.2K") are pre-formatted strings, so they can't drive plural
+            // rules — they're always ≥ 1000, i.e. the "other" plural form anyway.
+            return total >= 1_000 ? Text("\(formattedCount(total)) videos") : Text("\(total) videos")
         }
-        let suffix = hasMore && loaded > 0 ? "+" : ""
-        return "\(loaded)\(suffix) videos"
+        return countText(loaded, hasMore: hasMore, plain: { Text("\($0) videos") }, plus: { Text("\($0)+ videos") })
     }
 
     /// Count line for shorts / live / playlists — YouTube doesn't expose totals, so we show the
-    /// loaded count and append `+` when pagination has more pages.
-    private func tabSubtitle(noun: String, loaded: Int, hasMore: Bool) -> String {
-        let suffix = hasMore && loaded > 0 ? "+" : ""
-        let plural = loaded == 1 ? noun : noun + "s"
-        return "\(loaded)\(suffix) \(plural)"
+    /// loaded count, using the `+` variant when pagination has more pages. The closures supply
+    /// the literal so each phrase is its own pluralized catalog key.
+    private func countText(_ loaded: Int, hasMore: Bool, plain: (Int) -> Text, plus: (Int) -> Text) -> Text {
+        hasMore && loaded > 0 ? plus(loaded) : plain(loaded)
     }
 
     // MARK: - Helpers
 
     private func formattedCount(_ value: Int) -> String {
-        if value >= 1_000_000_000 { return String(format: "%.1fB", Double(value) / 1_000_000_000) }
-        if value >= 1_000_000 { return String(format: "%.1fM", Double(value) / 1_000_000) }
-        if value >= 1_000 { return String(format: "%.1fK", Double(value) / 1_000) }
-        return "\(value)"
+        value.compactFormatted
     }
 }

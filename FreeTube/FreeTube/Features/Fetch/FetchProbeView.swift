@@ -284,7 +284,7 @@ struct FetchProbeView: View {
         if fmt.protocolKind == .hls { pieces.append("HLS") }
         if fmt.protocolKind == .dash { pieces.append("DASH") }
         if let size = fmt.filesize { pieces.append(byteString(size)) }
-        if kind == .video && fmt.isProgressive { pieces.append("+ audio") }
+        if kind == .video && fmt.isProgressive { pieces.append(String(localized: "+ audio")) }
         return Text(pieces.joined(separator: " · "))
     }
 
@@ -312,7 +312,7 @@ struct FetchProbeView: View {
 
     /// Outer button label for the Menu — shows the current selection or placeholder.
     @ViewBuilder
-    private func menuButtonLabel(title: String, systemImage: String, selection: RemoteFormat?, placeholder: String, disabledNote: String?) -> some View {
+    private func menuButtonLabel(title: LocalizedStringKey, systemImage: String, selection: RemoteFormat?, placeholder: LocalizedStringKey, disabledNote: LocalizedStringKey?) -> some View {
         HStack(spacing: 12) {
             Image(systemName: systemImage)
                 .foregroundStyle(.tint)
@@ -321,7 +321,15 @@ struct FetchProbeView: View {
                 Text(title)
                     .font(.body)
                     .foregroundStyle(.primary)
-                Text(disabledNote ?? selection.map { selectionSummary($0) } ?? placeholder)
+                Group {
+                    if let disabledNote {
+                        Text(disabledNote)
+                    } else if let selection {
+                        Text(verbatim: selectionSummary(selection))
+                    } else {
+                        Text(placeholder)
+                    }
+                }
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

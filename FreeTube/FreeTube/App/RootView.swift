@@ -189,14 +189,15 @@ struct RootView: View {
     private var popupSubtitle: String {
         switch player.loadState {
         case .resolving:
-            return "Preparing…"
+            return String(localized: "Preparing…")
         case .downloading(let progress, let phase):
-            guard let progress else { return "Processing…" }
+            guard let progress else { return String(localized: "Processing…") }
             let percent = Int(progress * 100)
-            if let phase, phase == "video" || phase == "audio" {
-                return "Downloading \(phase) \(percent)%"
+            switch phase {
+            case "video": return String(localized: "Downloading video \(percent)%")
+            case "audio": return String(localized: "Downloading audio \(percent)%")
+            default: return String(localized: "Downloading \(percent)%")
             }
-            return "Downloading \(percent)%"
         case .failed(let msg):
             return msg
         case .idle, .readyToPlay:
@@ -305,14 +306,15 @@ struct PopupContentWrapper: View {
     private var subtitle: String {
         switch player.loadState {
         case .resolving:
-            return "Preparing…"
+            return String(localized: "Preparing…")
         case .downloading(let progress, let phase):
-            guard let progress else { return "Processing…" }
+            guard let progress else { return String(localized: "Processing…") }
             let percent = Int(progress * 100)
-            if let phase, phase == "video" || phase == "audio" {
-                return "Downloading \(phase) \(percent)%"
+            switch phase {
+            case "video": return String(localized: "Downloading video \(percent)%")
+            case "audio": return String(localized: "Downloading audio \(percent)%")
+            default: return String(localized: "Downloading \(percent)%")
             }
-            return "Downloading \(percent)%"
         case .failed(let msg):
             return msg
         case .idle, .readyToPlay:

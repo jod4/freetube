@@ -673,7 +673,7 @@ final class DownloadManager: TemporaryDownloading {
                     id: snapshotID,
                     videoID: video.id,
                     title: video.title,
-                    state: .failed("Could not combine video + audio"),
+                    state: .failed(String(localized: "Could not combine video + audio")),
                     createdAt: .now
                 ))
                 throw YouTubeServiceError.streamExtractionFailed
@@ -711,7 +711,7 @@ final class DownloadManager: TemporaryDownloading {
                     id: snapshotID,
                     videoID: video.id,
                     title: video.title,
-                    state: .failed("Download finished but file not found"),
+                    state: .failed(String(localized: "Download finished but file not found")),
                     createdAt: .now
                 ))
                 throw YouTubeServiceError.streamExtractionFailed

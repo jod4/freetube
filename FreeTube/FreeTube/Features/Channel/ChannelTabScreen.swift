@@ -9,7 +9,7 @@ import SwiftUI
 /// scrolling doesn't spam YouTube with continuation requests.
 @available(iOS 17.0, *)
 struct ChannelTabScreen: View {
-    let title: String
+    let title: LocalizedStringKey
     let kind: ChannelViewModel.Tab
     let model: ChannelViewModel
 
@@ -27,7 +27,7 @@ struct ChannelTabScreen: View {
                 videoList(videos)
             }
         }
-        .navigationTitle(title)
+        .navigationTitle(Text(title))
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -58,7 +58,7 @@ struct ChannelTabScreen: View {
     @ViewBuilder
     private func videoList(_ videos: [Video]) -> some View {
         if videos.isEmpty {
-            EmptyStateView(systemImage: "tray", title: "Nothing here", message: "This channel hasn't posted any \(title.lowercased()) yet.")
+            EmptyStateView(systemImage: "tray", title: "Nothing here", message: "This channel hasn't posted anything here yet.")
         } else {
             List {
                 ForEach(Array(videos.enumerated()), id: \.element.id) { index, video in

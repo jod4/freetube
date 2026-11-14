@@ -106,7 +106,7 @@ struct LibraryScreen: View {
         Section {
             menuRow(
                 title: "Subscriptions",
-                subtitle: "Latest from your subscriptions",
+                subtitle: Text("Latest from your subscriptions"),
                 systemImage: "person.2.fill"
             ) {
                 SubscriptionsScreen()
@@ -127,7 +127,7 @@ struct LibraryScreen: View {
         Section {
             menuRow(
                 title: "Watch history",
-                subtitle: countSubtitle(libraryModel.library?.historyCount, noun: "video"),
+                subtitle: countSubtitle(libraryModel.library?.historyCount) { Text("\($0) videos") },
                 systemImage: "clock.fill"
             ) {
                 HistoryScreen()
@@ -135,7 +135,7 @@ struct LibraryScreen: View {
 
             menuRow(
                 title: "Playlists",
-                subtitle: countSubtitle(libraryModel.library?.playlists.count, noun: "playlist"),
+                subtitle: countSubtitle(libraryModel.library?.playlists.count) { Text("\($0) playlists") },
                 systemImage: "rectangle.stack.fill"
             ) {
                 UserPlaylistsScreen(playlists: libraryModel.library?.playlists ?? [])
@@ -143,7 +143,7 @@ struct LibraryScreen: View {
 
             menuRow(
                 title: "Your videos",
-                subtitle: "Your YouTube channel",
+                subtitle: Text("Your YouTube channel"),
                 systemImage: "person.crop.rectangle.fill"
             ) {
                 if let channelID = libraryModel.library?.userChannelID {
@@ -160,7 +160,7 @@ struct LibraryScreen: View {
             // VLLL — YouTube's well-known playlist ID for the signed-in user's Liked Videos.
             menuRow(
                 title: "Liked videos",
-                subtitle: countSubtitle(libraryModel.library?.likedCount, noun: "video"),
+                subtitle: countSubtitle(libraryModel.library?.likedCount) { Text("\($0) videos") },
                 systemImage: "hand.thumbsup.fill"
             ) {
                 PlaylistScreen(playlistID: "VLLL")
@@ -169,7 +169,7 @@ struct LibraryScreen: View {
             // VLWL — Watch Later.
             menuRow(
                 title: "Watch later",
-                subtitle: countSubtitle(libraryModel.library?.watchLaterCount, noun: "video"),
+                subtitle: countSubtitle(libraryModel.library?.watchLaterCount) { Text("\($0) videos") },
                 systemImage: "clock.arrow.circlepath"
             ) {
                 PlaylistScreen(playlistID: "VLWL")
@@ -182,8 +182,8 @@ struct LibraryScreen: View {
     /// surrounding NavigationStack.
     @ViewBuilder
     private func menuRow<Destination: View>(
-        title: String,
-        subtitle: String,
+        title: LocalizedStringKey,
+        subtitle: Text,
         systemImage: String,
         @ViewBuilder destination: () -> Destination
     ) -> some View {
@@ -198,7 +198,7 @@ struct LibraryScreen: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.body)
-                    Text(subtitle)
+                    subtitle
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -209,10 +209,11 @@ struct LibraryScreen: View {
     /// Builds the "N videos" / "N playlists" subtitle. When the library response hasn't
     /// returned yet (count is nil), we render "—" rather than a hardcoded "0" so the user can
     /// tell "still loading" from "actually empty".
-    private func countSubtitle(_ count: Int?, noun: String) -> String {
-        guard let count else { return "—" }
-        let plural = count == 1 ? noun : noun + "s"
-        return "\(count) \(plural)"
+    /// `format` builds the localized, pluralized line (e.g. `Text("\($0) videos")`, which the
+    /// catalog resolves via its plural variations).
+    private func countSubtitle(_ count: Int?, format: (Int) -> Text) -> Text {
+        guard let count else { return Text(verbatim: "—") }
+        return format(count)
     }
 }
 

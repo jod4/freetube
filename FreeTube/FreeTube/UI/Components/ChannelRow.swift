@@ -17,7 +17,7 @@ struct ChannelRow: View {
         var parts: [String] = []
         if let handle = channel.handle, !handle.isEmpty { parts.append(handle) }
         if let subs = channel.subscriberCount {
-            parts.append("\(Self.formattedCount(subs)) subscribers")
+            parts.append(String(localized: "\(subs.compactFormatted) subscribers"))
         }
         return parts.joined(separator: " • ")
     }
@@ -52,14 +52,5 @@ struct ChannelRow: View {
             trailing
         }
         .contentShape(Rectangle())
-    }
-
-    /// Compact "1.2M" / "856K" / "12,345" formatter for subscriber counts. Static so SwiftUI's
-    /// view recompute doesn't allocate a fresh formatter each call.
-    private static func formattedCount(_ value: Int) -> String {
-        if value >= 1_000_000_000 { return String(format: "%.1fB", Double(value) / 1_000_000_000) }
-        if value >= 1_000_000 { return String(format: "%.1fM", Double(value) / 1_000_000) }
-        if value >= 1_000 { return String(format: "%.1fK", Double(value) / 1_000) }
-        return "\(value)"
     }
 }

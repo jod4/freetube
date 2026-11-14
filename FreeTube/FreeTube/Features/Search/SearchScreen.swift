@@ -180,7 +180,7 @@ struct MacInlineSearchField: View {
 struct ConditionalSearchable: ViewModifier {
     @Binding var text: String
     let enabled: Bool
-    var prompt: String = "Search"
+    var prompt: LocalizedStringKey = "Search"
 
     func body(content: Content) -> some View {
         if enabled {

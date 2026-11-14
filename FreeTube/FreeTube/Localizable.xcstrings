@@ -1,6 +1,142 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%lld channels couldn't be loaded. Pull to refresh." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld channels couldn't be loaded. Pull to refresh."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld Kanäle konnten nicht geladen werden. Zum Aktualisieren nach unten ziehen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudieron cargar %lld canales. Desliza hacia abajo para actualizar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de charger %lld chaînes. Tirez pour actualiser."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось загрузить каналов: %lld. Потяните вниз, чтобы обновить."
+          }
+        }
+      }
+    },
+    "Subscriptions are stored on this device only." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subscriptions are stored on this device only."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abos werden nur auf diesem Gerät gespeichert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las suscripciones se guardan solo en este dispositivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les abonnements sont enregistrés uniquement sur cet appareil."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подписки хранятся только на этом устройстве."
+          }
+        }
+      }
+    },
+    "Tap Subscribe on any channel page. Subscriptions are stored on this device only — no account needed." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap Subscribe on any channel page. Subscriptions are stored on this device only — no account needed."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tippe auf einer Kanalseite auf „Abonnieren“. Abos werden nur auf diesem Gerät gespeichert – kein Konto nötig."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toca Suscribirse en la página de cualquier canal. Las suscripciones se guardan solo en este dispositivo, sin necesidad de cuenta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touchez S’abonner sur la page d’une chaîne. Les abonnements sont enregistrés uniquement sur cet appareil — aucun compte requis."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нажмите «Подписаться» на странице любого канала. Подписки хранятся только на этом устройстве — аккаунт не нужен."
+          }
+        }
+      }
+    },
+    "Unsubscribe" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unsubscribe"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deabonnieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancelar suscripción"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se désabonner"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отписаться"
+          }
+        }
+      }
+    },
     "“%@” will be permanently removed from your device." : {
       "localizations" : {
         "de" : {
@@ -137,9 +273,7 @@
         }
       }
     },
-    "%lld" : {
-
-    },
+    "%lld" : {},
     "%lld items" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -312,9 +446,7 @@
         }
       }
     },
-    "%lld%%" : {
-
-    },
+    "%lld%%" : {},
     "1 (sequential)" : {
       "localizations" : {
         "de" : {
@@ -829,7 +961,6 @@
       }
     },
     "Channels you follow" : {
-      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -859,41 +990,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Каналы, на которые вы подписаны"
-          }
-        }
-      }
-    },
-    "Channels you subscribe to on YouTube will show up here." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kanäle, die du auf YouTube abonnierst, erscheinen hier."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Channels you subscribe to on YouTube will show up here."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Los canales a los que te suscribas en YouTube aparecerán aquí."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les chaînes auxquelles vous êtes abonné sur YouTube apparaîtront ici."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Каналы, на которые вы подписаны на YouTube, появятся здесь."
           }
         }
       }
@@ -2820,7 +2916,6 @@
       }
     },
     "Latest from your subscriptions" : {
-      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -3684,7 +3779,6 @@
       }
     },
     "No subscriptions" : {
-      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -3926,7 +4020,6 @@
       }
     },
     "Nothing new" : {
-      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -6531,7 +6624,6 @@
       }
     },
     "Subscribe to channels to see their latest videos here." : {
-      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

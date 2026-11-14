@@ -69,7 +69,7 @@ FreeTube/
 ├── Core/
 │   ├── Networking/        # YouTubeKit wrappers, one Service per response family
 │   ├── Auth/              # CookieStore, KeychainHelper, LoginCoordinator,
-│   │                      # SessionManager, SubscriptionRegistry, AuthState
+│   │                      # SessionManager, AuthState
 │   ├── Player/            # PlayerStateManager, PlaybackResolver, QueueManager,
 │   │                      # AudioSessionConfigurator, NowPlayingCenter,
 │   │                      # RemoteCommandCenter, StreamURLCache, HLSResourceLoaderDelegate
@@ -79,7 +79,8 @@ FreeTube/
 │   │                      # (yt-dlp ↔ JSCore glue), FreeTubeYtDlp (forked
 │   │                      # entry point that splices the bridge), EJSResources
 │   │                      # (loader for bundled yt-dlp-ejs JS)
-│   ├── Persistence/       # @Model types, PersistenceController, PersistenceWriter
+│   ├── Persistence/       # @Model types, PersistenceController, PersistenceWriter,
+│   │                      # SubscriptionRegistry (local, account-free subscriptions)
 │   └── Models/            # Domain types: Video, Channel, Playlist, Comment,
 │                          # VideoFormat, VideoQuality, ErrorState,
 │                          # PlaybackSource, UserPreferences, YouTubeServiceError
@@ -142,10 +143,9 @@ Every YouTubeKit response type gets exactly one service method. Do not call `You
 | `AccountInfosResponse` | `AccountService.fetchAccountInfo()` |
 | `AccountLibraryResponse` | `AccountService.fetchLibrary()` |
 | `AccountPlaylistsResponse` | `AccountService.fetchPlaylists()` |
-| `AccountSubscriptionsFeedResponse` | `SubscriptionService.fetchFeed()` |
-| `AccountSubscriptionsResponse` | `SubscriptionService.fetchSubscriptions()` |
+| `AccountSubscriptionsFeedResponse` / `AccountSubscriptionsResponse` | **Not used** — subscriptions are local-only, see §9.7. `SubscriptionService.fetchFeed(forceRefresh:)` builds the feed from `ChannelService.fetchLatestVideos(channelID:)` per subscribed channel |
 | `HistoryResponse` / `RemoveVideoFromHistroryResponse` | `HistoryService.fetch()` / `remove(videoID:)` |
-| `SubscribeChannelResponse` / `UnsubscribeChannelResponse` | `SubscriptionService.subscribe(channelID:)` / `unsubscribe(channelID:)` |
+| `SubscribeChannelResponse` / `UnsubscribeChannelResponse` | **Not used** — `SubscriptionService.subscribe(to:)` / `unsubscribe(channelID:)` only write to `SubscriptionRegistry` |
 | `AllPossibleHostPlaylistsResponse` | `PlaylistService.fetchHostablePlaylists(videoID:)` |
 | `AddVideoToPlaylistResponse` / `RemoveVideoByIdFromPlaylistResponse` / `RemoveVideoFromPlaylistResponse` | `PlaylistService.add/remove*` |
 | `CreatePlaylistResponse` / `DeletePlaylistResponse` / `MoveVideoInPlaylistResponse` | `PlaylistService.create/delete/move*` |
@@ -247,7 +247,7 @@ enum PlaybackSource {
 4. Required cookies (all must be present): `SAPISID`, `__Secure-3PAPISID`, `LOGIN_INFO`, `SID`, `HSID`, `SSID`, `APISID`.
 5. Cookies are serialized as a single Cookie-header string and stored in Keychain under `com.leshko.freetube.cookies` via `KeychainHelper`.
 6. On every app launch, `SessionManager.bootstrap()` reads from Keychain and assigns to `YouTubeModel.shared.cookies` plus `YouTubeKitClient.shared.applyCookies(...)`.
-7. **`SubscriptionRegistry`** persists the user's subscribed channel IDs in `UserDefaults` (`com.leshko.freetube.subscriptions`). Subscribe/unsubscribe optimistically flips this **and** calls the YouTube endpoint. Needed because YouTubeKit's `subscribeStatus` parser doesn't follow `pageHeaderRenderer` entity-key indirection — channel screens were always showing "Subscribe" even on subscribed channels until this cache was added.
+7. **Subscriptions are account-free** (like desktop FreeTube). `SubscriptionRegistry` (`Core/Persistence/`) stores `[LocalSubscription]` (channel ID, name, handle, avatar URL, date) as JSON in `UserDefaults` (`com.leshko.freetube.subscriptions`; the legacy `[String]` ID format is migrated on load). Subscribe/unsubscribe never call YouTube, and sign-in/sign-out never touches the list. The feed (`SubscriptionService.fetchFeed`) fetches each channel's Videos tab anonymously (max 6 concurrent, 15 videos/channel, 15-min in-memory cache), sorted by the approximate age that `RelativeAgeParser` reads from YouTube's localized "3 days ago" text (en/de/es/fr/ru). `ChannelService.mapChannel` takes `isSubscribed` from the registry only. UI: Library → Subscriptions (always visible) → `SubscriptionsScreen` → `SubscribedChannelsScreen`.
 8. **`AuthState`** (an `@Observable` singleton) drives root navigation: `.loggedIn` / `.loggedOut` / `.unknown`. On `cookieExpired` / 401-equivalent failures, `SessionManager.handleExpiredSession()` wipes Keychain + sets `AuthState.loggedOut` and the root re-routes to Login.
 
 ---
@@ -385,9 +385,9 @@ Using `.default()` reuses prior session cookies and captures stale ones. Use `.n
 
 When `.youtube.com` and `.google.com` versions of the same cookie are both present (post-login), YouTube only accepts the `.youtube.com` value. `CookieStore.dedupe` enforces this — don't simplify it to a length-based tiebreak.
 
-### 15.9 `SubscriptionRegistry` exists because YouTubeKit can't parse subscribe state reliably
+### 15.9 Subscriptions are local; ignore YouTubeKit's `subscribeStatus`
 
-YouTubeKit's `subscribeStatus` doesn't follow `pageHeaderRenderer` entity-key indirection. We persist subscribe state in `UserDefaults` and reconcile on subscribe/unsubscribe.
+Subscriptions live only in `SubscriptionRegistry` (§9.7). `ChannelInfosResponse.subscribeStatus` reflects a signed-in account's YouTube-side state (and is unreliable anyway — it doesn't follow `pageHeaderRenderer` entity-key indirection), so it is deliberately not read. Feed sorting depends on `RelativeAgeParser`; if YouTube changes its relative-time phrasing or the app gains a UI language, extend the unit tables there.
 
 ### 15.10 Don't run heavy work from SwiftUI bodies
 

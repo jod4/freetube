@@ -15,8 +15,15 @@ struct ChannelDetails: Sendable {
     let playlists: ChannelTab<Playlist>
 }
 
+/// Header plus the first page of a channel's Videos tab — what the local subscriptions feed needs.
+struct ChannelLatestVideos: Sendable {
+    let channel: Channel
+    let videos: [Video]
+}
+
 protocol ChannelServicing: Sendable {
     func fetchChannel(id: String) async throws -> ChannelDetails
+    func fetchLatestVideos(channelID: String) async throws -> ChannelLatestVideos
     func fetchVideosNextPage(channelID: String) async throws -> ChannelTab<Video>
     func fetchShortsNextPage(channelID: String) async throws -> ChannelTab<Video>
     func fetchDirectsNextPage(channelID: String) async throws -> ChannelTab<Video>
@@ -97,6 +104,25 @@ final class ChannelService: ChannelServicing {
             directs: directsTab.videoTab,
             playlists: extractPlaylistTab(from: merged)
         )
+    }
+
+    /// Lightweight variant of `fetchChannel(id:)` for the subscriptions feed: one base browse
+    /// request plus (at most) one Videos-tab request, instead of all four tabs. Does not touch the
+    /// pagination cache, so it never interferes with an open `ChannelScreen`.
+    func fetchLatestVideos(channelID: String) async throws -> ChannelLatestVideos {
+        let response: ChannelInfosResponse
+        do {
+            response = try await ChannelInfosResponse.sendThrowingRequest(
+                youtubeModel: client.model,
+                data: [.browseId: channelID]
+            )
+        } catch {
+            log.error("fetchLatestVideos(\(channelID, privacy: .public)) failed: \(String(describing: error), privacy: .public)")
+            throw YouTubeServiceError.network(error)
+        }
+        let channel = mapChannel(from: response, channelID: channelID)
+        let videos = await fetchSecondaryTab(response: response, type: .videos, channelID: channelID)
+        return ChannelLatestVideos(channel: channel, videos: videos.videoTab.items)
     }
 
     // MARK: - Pagination
@@ -200,19 +226,10 @@ final class ChannelService: ChannelServicing {
         let banner = Mappers.bestThumbnailURL(response.bannerThumbnails)
         let subCount = Mappers.parseAbbreviatedCount(response.subscriberCount)
         let videoCount = Int((response.videoCount ?? "").filter(\.isNumber))
-        // **isSubscribed source priority:**
-        //   1. `SubscriptionRegistry` — our local cache of channel IDs the user has subscribed
-        //      to. Updated on every subscribe/unsubscribe call and on `SubscribedChannelsScreen`
-        //      load. Trusted because we own it.
-        //   2. `response.subscribeStatus` — YouTubeKit's parser. Unreliable on the modern
-        //      `pageHeaderRenderer` channel layout (the field comes back nil), but valid when
-        //      present, so we OR it in as a fallback.
-        // Defaulting to `false` only when both signals are absent fixes the long-standing bug
-        // where the channel screen always showed "Subscribe" regardless of subscription state.
-        let registryHit = SubscriptionRegistry.containsBypassActor(id)
-        let parsed = response.subscribeStatus ?? false
-        let isSubscribed = registryHit || parsed
-        log.debug("[channel] mapChannel \(id, privacy: .public) — registry=\(registryHit, privacy: .public) parsed=\(parsed, privacy: .public) → isSubscribed=\(isSubscribed, privacy: .public)")
+        // Subscriptions are local-only (no YouTube account involved), so the local registry is
+        // the sole source of truth. `response.subscribeStatus` reflects a signed-in account's
+        // YouTube-side state and is deliberately ignored.
+        let isSubscribed = SubscriptionRegistry.containsBypassActor(id)
         return Channel(
             id: id,
             name: name,

@@ -309,6 +309,11 @@ final class DownloadManager: TemporaryDownloading {
     /// Per-video human-readable phase label ("video", "audio", "muxing"). yt-dlp downloads multiple
     /// streams sequentially under the same id, so we surface which one is currently in-flight to
     /// avoid the confusing "Downloading 100%" → "Downloading 0%" → "Downloading 100%" sequence.
+    ///
+    /// **Also the "bytes are flowing" signal:** an entry exists only once a stream transfer has
+    /// actually started (first yt-dlp progress callback, or a tier-2 stream fetch). It is cleared
+    /// when a new attempt starts and when the attempt completes or fails, so the player can show
+    /// "Preparing…" during yt-dlp's extraction + n/sig solving instead of a frozen "0%".
     private(set) var phaseByVideoID: [String: String] = [:]
 
     private var tasks: [String: DownloadTaskSnapshot] = [:]
@@ -540,6 +545,8 @@ final class DownloadManager: TemporaryDownloading {
 
         log.info("yt-dlp[\(video.id, privacy: .public)] argv=\(argv.joined(separator: " "), privacy: .public)")
         log.debug("yt-dlp[\(video.id, privacy: .public)] → state=downloading(0)")
+        // New attempt: no transfer has started yet (see `phaseByVideoID`).
+        phaseByVideoID.removeValue(forKey: video.id)
         publish(snapshot: DownloadTaskSnapshot(
             id: snapshotID,
             videoID: video.id,
@@ -1364,8 +1371,10 @@ final class DownloadManager: TemporaryDownloading {
             progressByVideoID[snapshot.videoID] = value
         } else if case .completed = snapshot.state {
             progressByVideoID.removeValue(forKey: snapshot.videoID)
+            phaseByVideoID.removeValue(forKey: snapshot.videoID)
         } else if case .failed = snapshot.state {
             progressByVideoID.removeValue(forKey: snapshot.videoID)
+            phaseByVideoID.removeValue(forKey: snapshot.videoID)
         }
         publishSnapshots()
     }

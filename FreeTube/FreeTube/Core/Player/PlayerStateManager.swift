@@ -200,7 +200,10 @@ final class PlayerStateManager {
     private var progressObservationTask: Task<Void, Never>?
 
     /// Polls `DownloadManager.shared.progressByVideoID` and updates `loadState` so the UI sees a
-    /// live progress bar while the file is downloading. The dictionary updates synchronously via
+    /// live progress bar while the file is downloading. Until a stream transfer has actually
+    /// started (`phaseByVideoID` has an entry) the state stays `.resolving` ("Preparing…") —
+    /// yt-dlp's extraction + JS challenge solving takes 10+ s before the first byte, and showing
+    /// "Downloading 0%" for that whole time looked like a hang. The dictionary updates synchronously via
     /// `@Observable`, but we still need an explicit poll loop because `loadState` lives on the
     /// player and SwiftUI views don't observe `DownloadManager` from this file's call site.
     private func startProgressObservation(for videoID: String) {
@@ -210,8 +213,14 @@ final class PlayerStateManager {
                 guard let self else { return }
                 let progress = DownloadManager.shared.progressByVideoID[videoID]
                 let phase = DownloadManager.shared.phaseByVideoID[videoID]
-                if case .downloading = self.loadState {
-                    self.loadState = .downloading(progress: progress, phase: phase)
+                switch self.loadState {
+                case .resolving, .downloading:
+                    let next: LoadState = phase == nil
+                        ? .resolving
+                        : .downloading(progress: progress, phase: phase)
+                    if next != self.loadState { self.loadState = next }
+                default:
+                    break
                 }
                 try? await Task.sleep(nanoseconds: 250_000_000)
             }
@@ -386,7 +395,9 @@ final class PlayerStateManager {
         //      Downloads, and doesn't burn cache storage. But it plays.
         let playbackURL: URL
         do {
-            loadState = .downloading(progress: 0, phase: nil)
+            // Stays "Preparing…" until bytes flow — `startProgressObservation` flips it to
+            // `.downloading` once DownloadManager reports a transfer phase.
+            loadState = .resolving
             // `.userInitiated` priority — the user just tapped Play and is actively waiting.
             // If a long background queue (playlist Download All) is in flight, this jumps the
             // line so playback starts as soon as the currently-running yt-dlp finishes, instead

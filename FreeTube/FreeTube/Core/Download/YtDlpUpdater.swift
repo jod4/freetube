@@ -27,6 +27,11 @@ import YoutubeDL
 /// inherit the same single-threaded interpreter discipline as the download path. We never
 /// touch `YoutubeDL.downloadPythonModule` (a static method on the package) from the main actor.
 ///
+/// **Pinned version.** Downloads go through `YtDlpInstaller`, which installs one
+/// checksum-verified yt-dlp release instead of `releases/latest` — newer releases require
+/// Python 3.11, but the embedded interpreter is 3.10. The weekly refresh therefore just
+/// re-verifies (and repairs) the pinned file; bump the pin in `YtDlpInstaller` to update.
+///
 /// **EJS hash compatibility caveat.** yt-dlp validates its bundled EJS solver against
 /// `vendor.HASHES`. Our shipped `core.min.js`/`lib.min.js` are pinned at version `0.8.0` —
 /// if yt-dlp auto-updates past a major/minor version that changes those hashes, the EJS path
@@ -99,7 +104,7 @@ final class YtDlpUpdater {
 
         log.info("Downloading yt-dlp (force=\(force, privacy: .public))")
         do {
-            try await YoutubeDL.downloadPythonModule()
+            try await YtDlpInstaller.shared.ensureInstalled(force: true)
         } catch {
             let msg = String(localized: "Download failed: \(error.localizedDescription)")
             log.error("\(msg, privacy: .public)")

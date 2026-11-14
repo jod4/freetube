@@ -411,6 +411,10 @@ We fake `deno` to yt-dlp using `JavaScriptCore`. The bridge is **five pieces**, 
 
 5. **`js_runtimes` ydl_opt** — even with the runtime detection stubbed, yt-dlp's `_js_runtimes` dict only gets populated from the `js_runtimes` ydl_opt. `FreeTubeYtDlp.swift` adds `ydl_opts["js_runtimes"] = {"deno": {"path": fakeDenoPath}}` so the dict has an entry to apply (3) to.
 
+**PythonKit gotcha (this broke the bridge silently):** `PythonFunction { (x: PythonObject) in … }` receives the *first argument itself*, not the argument tuple — `x[0]` then indexes the first *character* of a string argument. `eval_js` used to do exactly that, so JSC evaluated one character, returned `""`, and yt-dlp reported `JSONDecodeError` + `n challenge solving failed` → HTTP 403 on every download. Always use the `[PythonObject]` overload for Python-callable Swift functions. `[JSBridge] [eval_js] in=…B out=…B …ms` in the log shows the real payload size (~3 MB in / ~4 MB out, ~5 s on an iPad 7).
+
+**yt-dlp version is pinned** (`YtDlpInstaller`, SHA-256-verified) because the embedded CPython is **3.10** and yt-dlp ≥ 2026.10.26 requires 3.11 (`ImportError: unsupported version of Python` on import). The weekly `YtDlpUpdater` refresh only re-verifies/repairs the pinned file. To bump: the new tag must still accept 3.10, vendor the same yt-dlp-ejs major/minor as `EJSResources.version`, and its `SHA2-256SUMS` entry goes into `YtDlpInstaller.sha256`.
+
 **Maintenance:** when YoutubeDL-iOS bumps its yt-dlp version, re-pull `yt-dlp-ejs` from PyPI to match (check upstream `vendor.HASHES`), update `EJSResources.version`, drop new `core.min.js`/`lib.min.js` into `Resources/`. yt-dlp validates major/minor version of the script against its embedded `_SCRIPT_VERSION`; mismatch silently disables the EJS path.
 
 ### 15.12 `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` runs anything unannotated on main

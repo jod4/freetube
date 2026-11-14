@@ -45,9 +45,7 @@ final class SessionManager {
         // also be invalid. `ensureVisitorData` below seeds a fresh one for the anonymous session.
         client.clearVisitorData()
         await client.ensureVisitorData()
-        // Wipe the local subscriptions cache so the next signed-in user doesn't see the previous
-        // account's channels marked as "subscribed".
-        SubscriptionRegistry.shared.clear()
+        // Local subscriptions (`SubscriptionRegistry`) are account-independent and survive sign-out.
         AuthState.shared.status = .loggedOut
         log.info("[session] signOut complete → status=.loggedOut")
     }

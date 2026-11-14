@@ -7,12 +7,14 @@ import Kingfisher
 ///   - Watch history (`HistoryScreen` backed by `HistoryResponse`)
 ///   - Playlists (list of user-owned playlists from `AccountLibraryResponse`)
 ///   - Your videos (the user's own uploads — opens `ChannelScreen(channelID:)`)
-///   - Subscriptions (channels you follow — opens `SubscriptionsScreen`)
 ///   - Liked videos (special playlist `VLLL` — opens `PlaylistScreen`)
 ///   - Watch later (special playlist `VLWL` — opens `PlaylistScreen`)
 ///
 /// When signed out we show a single sign-in CTA and hide the menu. Tapping any item while
 /// signed out would route to an error toast — clearer to just gate the whole menu.
+///
+/// The Subscriptions section is the exception: subscriptions are stored locally and need no
+/// account, so it is always shown (feed → `SubscriptionsScreen`, channel list inside it).
 @available(iOS 17.0, *)
 struct LibraryScreen: View {
     @State private var libraryModel = LibraryViewModel()
@@ -23,6 +25,7 @@ struct LibraryScreen: View {
         NavigationStack {
             List {
                 accountSection
+                subscriptionsSection
                 if accountModel.info != nil {
                     menuSection
                 }
@@ -96,6 +99,23 @@ struct LibraryScreen: View {
         }
     }
 
+    // MARK: - Subscriptions (local, no account)
+
+    @ViewBuilder
+    private var subscriptionsSection: some View {
+        Section {
+            menuRow(
+                title: "Subscriptions",
+                subtitle: "Latest from your subscriptions",
+                systemImage: "person.2.fill"
+            ) {
+                SubscriptionsScreen()
+            }
+        } footer: {
+            Text("Subscriptions are stored on this device only.")
+        }
+    }
+
     // MARK: - Menu
 
     /// Five destinations as a single section (Movies removed — YouTubeKit doesn't expose it).
@@ -135,14 +155,6 @@ struct LibraryScreen: View {
                         message: "Your YouTube channel ID wasn't returned in the library response. Try refreshing the Library screen."
                     )
                 }
-            }
-
-            menuRow(
-                title: "Subscriptions",
-                subtitle: "Channels you follow",
-                systemImage: "person.2.fill"
-            ) {
-                SubscribedChannelsScreen()
             }
 
             // VLLL — YouTube's well-known playlist ID for the signed-in user's Liked Videos.

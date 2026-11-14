@@ -50,6 +50,10 @@ public nonisolated func freetube_yt_dlp(
     // and calls `loadPythonModule()`, which initializes Python, downloads yt-dlp on first run,
     // and (critically for us) runs `injectFakePopen` — replacing `subprocess.Popen` with the
     // package's ffmpeg-only `Pop` class. After this returns we own the splice point.
+    // Install / verify the pinned yt-dlp first — otherwise YoutubeDL-iOS's
+    // `loadPythonModule()` would fetch `releases/latest`, which no longer supports our
+    // Python 3.10 interpreter (see `YtDlpInstaller`).
+    try await YtDlpInstaller.shared.ensureInstalled()
     let ytdlp = try await YtDlp()
 
     // Splice point: now that `injectFakePopen` has run, layer our extension on top. Our
@@ -105,6 +109,10 @@ public nonisolated func freetube_yt_dlp_extract_info(url: String) async throws -
     let ytdlpLog = AppLog(subsystem: "com.leshko.freetube", category: "ytdlp")
 
     bridgeLog.info("extract_info: about to await YtDlp() init")
+    // Install / verify the pinned yt-dlp first — otherwise YoutubeDL-iOS's
+    // `loadPythonModule()` would fetch `releases/latest`, which no longer supports our
+    // Python 3.10 interpreter (see `YtDlpInstaller`).
+    try await YtDlpInstaller.shared.ensureInstalled()
     let ytdlp = try await YtDlp()
     bridgeLog.info("extract_info: YtDlp ready, installing JS bridge before extract_info")
     PythonJSBridge.install()

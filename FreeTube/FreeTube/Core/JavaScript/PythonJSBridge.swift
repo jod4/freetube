@@ -49,6 +49,7 @@ nonisolated enum PythonJSBridge {
     /// heap-allocated bridge; we keep a Swift-side strong ref so the bridge isn't torn
     /// down while Python still holds the function as `builtins.eval_js`.
     private static var retainedEvalJS: PythonFunction?
+    private static var retainedLog: PythonFunction?
 
     /// Installs all four pieces. Safe to call multiple times — each piece guards against
     /// double-install (re-binding `builtins.eval_js`, idempotent `sys.modules` writes,
@@ -71,18 +72,25 @@ nonisolated enum PythonJSBridge {
     /// modification. `JSContext` doesn't ship a `console` global, so the prologue defines
     /// one inside the evaluation scope.
     private static func installEvalJSBuiltin() {
-        let evalJS = PythonFunction { (args: PythonObject) -> PythonConvertible in
-            guard let code = String(args[0]) else {
+        // NB: use the `[PythonObject]` overload. PythonKit's `(PythonObject)` overload already
+        // passes the *first argument* (not the args tuple), so `args[0]` there indexed the
+        // first *character* of the script — JSC evaluated one character, returned "", and
+        // yt-dlp failed every n/sig challenge with `JSONDecodeError` → HTTP 403 downloads.
+        let evalJS = PythonFunction { (args: [PythonObject]) -> PythonConvertible in
+            guard let first = args.first, let code = String(first) else {
                 let builtins = Python.import("builtins")
                 let err = builtins.TypeError("eval_js: first argument must be a string")
                 throw PythonError.exception(err, traceback: nil)
             }
 
             let wrapped = wrapForStdoutCapture(code)
+            let started = Date()
             do {
                 let result = try JSEvaluator.evaluate(wrapped)
+                log.info("[eval_js] in=\(code.utf8.count, privacy: .public)B out=\(result.utf8.count, privacy: .public)B \(Int(Date().timeIntervalSince(started) * 1000), privacy: .public)ms")
                 return PythonObject(result)
             } catch {
+                log.error("[eval_js] in=\(code.utf8.count, privacy: .public)B failed after \(Int(Date().timeIntervalSince(started) * 1000), privacy: .public)ms: \(String(describing: error), privacy: .public)")
                 let builtins = Python.import("builtins")
                 let err = builtins.RuntimeError("eval_js: \(String(describing: error))")
                 throw PythonError.exception(err, traceback: nil)
@@ -90,8 +98,18 @@ nonisolated enum PythonJSBridge {
         }
         retainedEvalJS = evalJS
 
+        // Diagnostics hook for the Python side of the bridge (lengths / flags only — never
+        // payload contents, which include signed URLs' challenge inputs).
+        let ftLog = PythonFunction { (args: [PythonObject]) -> PythonConvertible in
+            let message = args.first.flatMap { String($0) } ?? "<non-string>"
+            log.info("[py] \(message, privacy: .public)")
+            return Python.None
+        }
+        retainedLog = ftLog
+
         let builtins = Python.import("builtins")
         builtins.eval_js = evalJS.pythonObject
+        builtins.__ft_log = ftLog.pythonObject
     }
 
     /// Wraps yt-dlp's stdin-style JS payload in an IIFE that:
@@ -280,6 +298,7 @@ nonisolated enum PythonJSBridge {
         def _patched_init(self, *args, **kwargs):
             self._ft_deno = False
             if _is_deno_argv(args):
+                builtins.__ft_log(f'deno Popen argv={len(args[0])} args stdin_kw={"stdin" in kwargs}')
                 self._ft_deno = True
                 self._ft_cmd = args[0]
                 self.returncode = None
@@ -320,6 +339,7 @@ nonisolated enum PythonJSBridge {
                 stdin_str = str(stdin)
 
             text_mode = getattr(self, '_ft_text_mode', True)
+            builtins.__ft_log(f'deno communicate: positional={len(args)} kw={sorted(kwargs)} stdin_type={type(stdin).__name__} stdin_len={len(stdin_str)} text={text_mode}')
             try:
                 result = builtins.eval_js(stdin_str)
                 self.returncode = 0

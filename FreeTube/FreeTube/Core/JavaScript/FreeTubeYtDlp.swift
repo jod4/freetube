@@ -196,7 +196,7 @@ public nonisolated func freetube_yt_dlp_extract_info(url: String) async throws -
     // 30s for an error; they cannot wait 3 minutes for the spinner.
     opts["socket_timeout"] = 30.0
     opts["extractor_args"] = PythonObject([
-        "youtube": ["player_client=tv_simply,tv_embedded,web_creator,mweb,web_safari,ios,android_vr", "formats=missing_pot"]
+        "youtube": ["player_client=visionos,tv_simply,web_creator,mweb,web_safari,ios,android_vr", "formats=missing_pot"]
     ] as [String: [String]])
     opts["js_runtimes"] = PythonObject(["deno": ["path": PythonJSBridge.fakeDenoPath]])
     YtDlpCache.prunePreprocessedPlayers()

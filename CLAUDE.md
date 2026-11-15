@@ -169,7 +169,11 @@ This is what the codebase actually does today, not the original v1 design. The f
 2. **Cache check first.** `localFile(for:)` returns immediately if the mp4 already exists in `Documents/Downloads/<videoID>.mp4`.
 3. **Network gate.** `waitForAllowedNetwork()` blocks the call until the user-allowed network is up (Wi-Fi if `wifiOnlyDownloads` is set).
 4. **Submit to PythonRunner** with priority `.high` (`.userInitiated`) for play taps, `.low` (`.background`) for prefetch / Download All.
-5. yt-dlp is invoked with a hard-coded set of player clients (`player_client=tv_simply,tv_embedded,web_creator,mweb,web_safari,ios,android_vr;formats=missing_pot`) to maximise chances of getting a non-cipher format.
+5. yt-dlp is invoked with a hard-coded set of player clients (`player_client=visionos,tv_simply,web_creator,mweb,web_safari,ios,android_vr;formats=missing_pot`) and the format selector `bestvideo[height<=cap][vcodec^=avc1][ext=mp4]+bestaudio[ext=m4a]/best[height<=cap][ext=mp4]/best[ext=mp4]/best` (`DownloadManager.formatString`).
+   - **`visionos` must stay first.** It is the only client whose split DASH streams (H.264 360p–1080p + m4a) are served without a Proof-of-Origin token, and it needs no n/sig solving. Every other client's split streams are `MISSING POT`: YouTube serves the first ~1 MB, then HTTP 403 — with 10 MB chunks that's an immediate 403. Verified 2026-11 by range requests at several file offsets. `visionos` has no progressive format, so itag 18 (360p, token-free) still comes from `tv_simply` as the fallback.
+   - **`+`, never `,`, between video and audio.** `,` binds weakest in yt-dlp's grammar (`a/b/c,d` = "`a/b/c` *and also* `d`"): the old selector always picked progressive 360p plus a useless separate audio download. With `+` and no ffmpeg (step 6) yt-dlp writes both legs as `<id>.<v>+<a>.f<v>.mp4` / `.f<a>.m4a`; the Swift mux in step 8 joins them. If only one leg lands, the result is discarded (no silent video) and tier 2 runs.
+   - **`vcodec^=avc1`:** AV1 (itags 394–399) has no hardware decoder before A17/M3 (e.g. iPad 7), and AVPlayer can't play VP9/WebM.
+   - **Diagnosing:** on a Mac, run the pinned yt-dlp (`python3.14 yt-dlp --js-runtimes node --extractor-args "youtube:player_client=<c>" -j <url>`) per client, then fetch 1 MB `Range` requests mid-file from each format's `url` with its `http_headers`; `206` everywhere = usable, `206` at 0 + `403` later = PoT-gated.
 6. **Critical: `--ffmpeg-location /dev/null/no-ffmpeg` is forced**, so yt-dlp's Python-side ffmpeg merger never runs. yt-dlp's `subprocess.Popen` against ffmpeg reliably hangs Python in `Popen.communicate` on iOS. We mux ourselves in Swift afterwards (`muxToDestination` → `FFmpegRunner.shared.run`). See §15 on the workaround.
 7. **JS bridge installed before download**: `freetube_yt_dlp` (our forked entry point in `Core/JavaScript/FreeTubeYtDlp.swift`) splices `PythonJSBridge.install()` between YoutubeDL-iOS's `injectFakePopen` and `ydl.download`. This wires `JavaScriptCore` as the `deno` runtime for yt-dlp's EJS-based N/SIG challenge solver — formats that previously hit `n challenge solving failed` now resolve in-process. Full architecture in §15.11.
 8. If yt-dlp produces output, optionally mux video+audio and persist as `DownloadedVideo` row.
@@ -205,7 +209,8 @@ If all four miss, `loadState = .failed` and the user sees an error toast.
 | Persists to `DownloadedVideo` | Yes | Yes | No |
 | Offline playback | Yes | Yes | No |
 | Works for PoT-locked content | No | No | Often yes (HLS) |
-| Latency (cold) | ~3–10s | ~2–5s | ~1–2s |
+| Quality | Up to the setting (720p default, via `visionos` split streams) | 360p progressive, or split if URLs work | Adaptive |
+| Latency (cold) | ~10–15s on iPad 7 (extraction + download + mux) | ~2–5s | ~1–2s |
 
 ### Shape
 

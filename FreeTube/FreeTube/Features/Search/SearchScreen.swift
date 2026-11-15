@@ -84,6 +84,8 @@ struct SearchContent: View {
     @Bindable var model: SearchViewModel
     let onRunSearch: () -> Void
     @Environment(PlayerStateManager.self) private var player
+    /// 1–3, from `VideoGridColumns` breakpoints.
+    @State private var columns = 1
     @Environment(\.modelContext) private var modelContext
 
     /// Recently entered search queries, newest first. Tapping one re-runs the search.
@@ -151,58 +153,79 @@ struct SearchContent: View {
         .listStyle(.plain)
     }
 
+    /// Results as one scroll view: channels and playlists (rows, side by side when there's
+    /// room), then the videos as a responsive `VideoGrid` — compact rows on narrow screens,
+    /// 2–3 columns of cards on iPad.
     @ViewBuilder
     private func resultsList(_ results: SearchResult) -> some View {
-        List {
-            if !results.channels.isEmpty {
-                Section("Channels") {
-                    ForEach(results.channels) { channel in
-                        NavigationLink {
-                            ChannelScreen(channelID: channel.id)
-                        } label: {
-                            ChannelRow(channel: channel)
+        ScrollView {
+            // Plain VStack: `VideoGrid` must be the only lazy container (see its doc comment).
+            VStack(alignment: .leading, spacing: 12) {
+                if !results.channels.isEmpty {
+                    SectionHeader(title: "Channels")
+                    rowGrid {
+                        ForEach(results.channels) { channel in
+                            NavigationLink {
+                                ChannelScreen(channelID: channel.id)
+                            } label: {
+                                ChannelRow(channel: channel)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
-            }
-            if !results.playlists.isEmpty {
-                Section("Playlists") {
-                    ForEach(results.playlists) { playlist in
-                        NavigationLink {
-                            PlaylistScreen(playlistID: playlist.id)
-                        } label: {
-                            PlaylistRow(playlist: playlist, showsMoreMenu: true)
+                if !results.playlists.isEmpty {
+                    SectionHeader(title: "Playlists")
+                    rowGrid {
+                        ForEach(results.playlists) { playlist in
+                            NavigationLink {
+                                PlaylistScreen(playlistID: playlist.id)
+                            } label: {
+                                PlaylistRow(playlist: playlist, showsMoreMenu: true)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
-            }
-            if !results.videos.isEmpty {
-                Section("Videos") {
-                    let lookaheadIDs = Set(results.videos.suffix(5).map(\.id))
-                    ForEach(results.videos) { video in
-                        VideoRow(video: video, showsMoreMenu: true) {
-                            player.load(video)
-                        }
-                        .onAppear {
-                            guard lookaheadIDs.contains(video.id),
+                if !results.videos.isEmpty {
+                    SectionHeader(title: "Videos")
+                    VideoGrid(
+                        videos: results.videos,
+                        columns: columns,
+                        compactWhenSingleColumn: true,
+                        showsMoreMenu: true,
+                        onTap: { player.load($0) },
+                        onItemAppear: { index in
+                            guard index >= results.videos.count - 5,
                                   results.continuationToken != nil,
                                   !model.isLoading else { return }
                             Task { await model.loadMore() }
                         }
-                    }
+                    )
                     if model.isLoading {
                         HStack {
                             Spacer()
                             ProgressView()
                             Spacer()
                         }
+                        .padding(.vertical, 8)
                     }
                 }
             }
+            .padding(.vertical, 8)
         }
-        .listStyle(.plain)
+        .readVideoGridColumns(into: $columns)
+    }
+
+    /// Channel / playlist rows in the same column count as the video grid. A sibling of the
+    /// `VideoGrid`, not a wrapper around it, so it doesn't nest lazy containers.
+    private func rowGrid<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        LazyVGrid(
+            columns: Array(repeating: GridItem(.flexible(), spacing: 16, alignment: .top), count: columns),
+            spacing: 12,
+            content: content
+        )
+        .padding(.horizontal)
     }
 }
 

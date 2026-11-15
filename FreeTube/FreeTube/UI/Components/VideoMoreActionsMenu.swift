@@ -19,7 +19,16 @@ struct VideoMoreActionsMenu: View {
     let video: Video
 
     @Environment(\.modelContext) private var modelContext
+    /// Only this video's favorite row (0 or 1). Every card in a feed owns one of these menus,
+    /// so an unfiltered query would fetch the whole favorites table per card on every
+    /// appearance — noticeable as scroll stutter in long grids.
     @Query private var favorites: [FavoriteVideo]
+
+    init(video: Video) {
+        self.video = video
+        let videoID = video.id
+        _favorites = Query(filter: #Predicate<FavoriteVideo> { $0.videoID == videoID })
+    }
 
     @State private var shareFileURL: URL?
     @State private var addToPlaylistVideo: Video?

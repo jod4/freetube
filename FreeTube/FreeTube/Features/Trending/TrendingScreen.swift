@@ -9,6 +9,8 @@ import SwiftUI
 @available(iOS 17.0, *)
 struct TrendingScreen: View {
     @State private var model = TrendingViewModel()
+    /// 1–3, from `VideoGridColumns` breakpoints.
+    @State private var columns = 1
     @Environment(PlayerStateManager.self) private var player
 
     var body: some View {
@@ -33,47 +35,40 @@ struct TrendingScreen: View {
 
     @ViewBuilder
     private var feed: some View {
-        List {
-            if model.sections.isEmpty && !model.isLoading {
-                EmptyStateView(
-                    systemImage: "play.rectangle.on.rectangle",
-                    title: "Nothing here yet",
-                    message: "Pull to refresh or sign in to see your home feed."
+        ScrollView {
+            // Plain VStack on purpose: `VideoGrid` must be the only lazy container (see its
+            // doc comment), so all feed sections go into that one grid.
+            VStack(alignment: .leading, spacing: 12) {
+                if model.sections.isEmpty && !model.isLoading {
+                    EmptyStateView(
+                        systemImage: "play.rectangle.on.rectangle",
+                        title: "Nothing here yet",
+                        message: "Pull to refresh or sign in to see your home feed."
+                    )
+                }
+
+                let sections = model.sections.map {
+                    VideoGridSection(id: $0.id, title: $0.title, videos: $0.videos)
+                }
+                let total = VideoGrid.totalCount(of: sections)
+                VideoGrid(
+                    sections: sections,
+                    columns: columns,
+                    showsMoreMenu: true,
+                    onTap: { player.load($0) },
+                    onItemAppear: { index in
+                        guard index >= total - 5 else { return }
+                        guard model.continuationToken != nil, !model.isLoading else { return }
+                        Task { await model.loadMore() }
+                    }
                 )
-                .listRowInsets(EdgeInsets())
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-            }
 
-            ForEach(model.sections) { section in
-                if let title = section.title {
-                    SectionHeader(verbatim: title)
-                        .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 0, trailing: 0))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                }
-
-                ForEach(section.videos) { video in
-                    VideoCard(video: video, onTap: { player.load(video) }, showsMoreMenu: true)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 12, trailing: 0))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .onAppear {
-                            guard section.id == model.sections.last?.id else { return }
-                            guard section.videos.suffix(5).contains(where: { $0.id == video.id }) else { return }
-                            guard model.continuationToken != nil, !model.isLoading else { return }
-                            Task { await model.loadMore() }
-                        }
+                if model.isLoading {
+                    LoadingView()
                 }
             }
-
-            if model.isLoading {
-                LoadingView()
-                    .listRowInsets(EdgeInsets())
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-            }
+            .padding(.vertical, 8)
         }
-        .listStyle(.plain)
+        .readVideoGridColumns(into: $columns)
     }
 }

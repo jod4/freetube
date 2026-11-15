@@ -14,6 +14,8 @@ struct ChannelTabScreen: View {
     let model: ChannelViewModel
 
     @Environment(PlayerStateManager.self) private var player
+    /// 1–3, from `VideoGridColumns` breakpoints (video tabs only; playlists stay a list).
+    @State private var columns = 1
 
     /// How many rows from the bottom we trigger pagination. 5 keeps the next page warm before the
     /// user's thumb arrives at the actual last row.
@@ -60,18 +62,23 @@ struct ChannelTabScreen: View {
         if videos.isEmpty {
             EmptyStateView(systemImage: "tray", title: "Nothing here", message: "This channel hasn't posted anything here yet.")
         } else {
-            List {
-                ForEach(Array(videos.enumerated()), id: \.element.id) { index, video in
-                    VideoRow(video: video) { player.load(video) }
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .onAppear { prefetchIfNeeded(currentIndex: index, total: videos.count) }
+            ScrollView {
+                // Plain VStack: `VideoGrid` must be the only lazy container (see its doc comment).
+                VStack(spacing: 12) {
+                    VideoGrid(
+                        videos: videos,
+                        columns: columns,
+                        compactWhenSingleColumn: true,
+                        onTap: { player.load($0) },
+                        onItemAppear: { prefetchIfNeeded(currentIndex: $0, total: videos.count) }
+                    )
+                    if model.canLoadMore(for: kind) {
+                        loadMoreFooter
+                    }
                 }
-                if model.canLoadMore(for: kind) {
-                    loadMoreFooter
-                }
+                .padding(.vertical, 8)
             }
-            .listStyle(.plain)
+            .readVideoGridColumns(into: $columns)
         }
     }
 

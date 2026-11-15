@@ -27,6 +27,9 @@ struct PlaylistScreen: View {
     /// header stays compact and the video list isn't pushed below the fold.
     @State private var isDetailsExpanded = false
 
+    /// 1–3, from `VideoGridColumns` breakpoints.
+    @State private var columns = 1
+
     init(playlistID: String) {
         _model = State(wrappedValue: PlaylistViewModel(playlistID: playlistID))
     }
@@ -67,6 +70,7 @@ struct PlaylistScreen: View {
                 }
             }
         }
+        .readVideoGridColumns(into: $columns)
         .navigationBarTitleDisplayMode(.inline)
         // Hide the navigation bar's own background so the blurred artwork shows through it —
         // without this the nav bar paints its standard translucent material on top, hiding the
@@ -355,25 +359,27 @@ struct PlaylistScreen: View {
 
     @ViewBuilder
     private func videosList(_ videos: [Video]) -> some View {
-        LazyVStack(spacing: 0) {
-            ForEach(Array(videos.enumerated()), id: \.element.id) { index, video in
-                VideoRow(video: video) {
+        // Plain VStack: `VideoGrid` must be the only lazy container (see its doc comment).
+        VStack(spacing: 12) {
+            VideoGrid(
+                videos: videos,
+                columns: columns,
+                compactWhenSingleColumn: true,
+                onTap: { video in
                     // Make sure the queue reflects the playlist's order before kicking off
                     // playback, so "next video" actually means the next playlist entry.
                     player.queue.replace(with: videos)
                     player.load(video)
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 6)
-                .onAppear {
-                    // Trigger the next-page fetch when the row 5 from the bottom appears.
+                },
+                onItemAppear: { index in
+                    // Trigger the next-page fetch when the item 5 from the bottom appears.
                     // PlaylistService caches the continuation token on the response struct, so
                     // each `loadMore` advances the cursor for subsequent calls.
                     if index >= videos.count - 5, model.canLoadMore {
                         Task { await model.loadMore() }
                     }
                 }
-            }
+            )
             if model.canLoadMore || model.isLoadingMore {
                 // Bottom spinner that doubles as a safety-net trigger for very short lists
                 // where the 5-row lookahead doesn't fire.

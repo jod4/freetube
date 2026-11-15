@@ -1,7 +1,8 @@
 import SwiftUI
 import Kingfisher
 
-/// Vertical "feed" video card — used in Home, Subscriptions, Channel videos.
+/// Vertical "feed" video card — used in Trending, Subscriptions, and every multi-column
+/// `VideoGrid`.
 ///
 /// Set `showsMoreMenu: true` to render the trailing ellipsis Menu (open in browser, copy URL,
 /// favorites, add to playlist, downloads) on the metadata row. The Menu sits as a sibling of
@@ -11,6 +12,11 @@ struct VideoCard: View {
     let video: Video
     var onTap: () -> Void = {}
     var showsMoreMenu: Bool = false
+    /// Grid style: rounded thumbnail and no own side padding, because the surrounding grid
+    /// already insets the cards. `false` = full-bleed single-column look.
+    var isInset: Bool = false
+
+    @Environment(\.displayScale) private var displayScale
 
     /// Channel name plus the playback count and relative upload date. Joined by middle dots so
     /// the line reads naturally and any missing segment is dropped without leaving stray
@@ -38,17 +44,24 @@ struct VideoCard: View {
         }
     }
 
+    /// Strictly 16:9 whatever the source image is (Shorts and old 4:3 uploads would
+    /// otherwise make the card taller): the `Color.clear` box fixes the frame from the width,
+    /// the image only fills it as an overlay. Decoded at ~480×270 pt × screen scale, which
+    /// covers a 2–3 column iPad card and a single-column iPhone card without wasting memory.
     private var thumbnail: some View {
         ZStack(alignment: .bottomTrailing) {
-            KFImage(video.thumbnailURL)
-                .thumbnail(size: CGSize(width: 400, height: 225)) {
-                    Color.gray.opacity(0.2)
-                }
-                .resizable()
-                .scaledToFill()
+            Color.clear
+                .aspectRatio(16/9, contentMode: .fit)
                 .frame(maxWidth: .infinity)
-                .aspectRatio(16/9, contentMode: .fill)
-                .clipped()
+                .overlay {
+                    KFImage(video.thumbnailURL)
+                        .thumbnail(size: CGSize(width: 480, height: 270), scale: displayScale) {
+                            Color.gray.opacity(0.2)
+                        }
+                        .resizable()
+                        .scaledToFill()
+                }
+                .clipShape(RoundedRectangle(cornerRadius: isInset ? 10 : 0))
 
             if !video.durationString.isEmpty {
                 Text(video.durationString)
@@ -77,9 +90,11 @@ struct VideoCard: View {
                         .clipShape(Circle())
 
                     VStack(alignment: .leading, spacing: 2) {
+                        // Always two lines tall, so neighbouring cards in a grid row
+                        // line up and every row has the same height.
                         Text(video.title)
                             .font(.subheadline.weight(.semibold))
-                            .lineLimit(2)
+                            .lineLimit(2, reservesSpace: true)
                         Text(metadataLine)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -96,6 +111,6 @@ struct VideoCard: View {
                 VideoMoreActionsMenu(video: video)
             }
         }
-        .padding(.horizontal)
+        .padding(.horizontal, isInset ? 0 : 16)
     }
 }

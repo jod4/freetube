@@ -15,17 +15,19 @@ extension KFImage {
     ///   - `fade(duration:)` — short cross-fade softens the placeholder → image transition.
     ///   - `cancelOnDisappear(true)` — fast flicks don't pile up dead requests on the queue.
     ///
-    /// `size` is in points; multiplied by 3 internally for retina screens. Passing the
-    /// displayed size avoids decoding a 1MB JPEG into memory for a 36pt avatar.
+    /// `size` is in points, multiplied by `scale` (default 3, the largest retina factor).
+    /// Pass the view's `displayScale` for big images so a @2x iPad doesn't decode @3x pixels.
+    /// Passing the displayed size avoids decoding a 1MB JPEG into memory for a 36pt avatar.
     func thumbnail<Placeholder: View>(
         size: CGSize,
+        scale: CGFloat = 3,
         @ViewBuilder placeholder: @escaping () -> Placeholder
     ) -> KFImage {
         self
             .placeholder(placeholder)
             .setProcessor(DownsamplingImageProcessor(size: CGSize(
-                width: size.width * 3,
-                height: size.height * 3
+                width: size.width * scale,
+                height: size.height * scale
             )))
             .cacheOriginalImage()
             .fade(duration: 0.15)

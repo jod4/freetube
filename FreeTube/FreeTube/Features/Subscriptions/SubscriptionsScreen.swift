@@ -6,17 +6,23 @@ import Kingfisher
 @available(iOS 17.0, *)
 struct SubscriptionsScreen: View {
     @State private var model = SubscriptionsViewModel()
+    /// 1–3, from `VideoGridColumns` breakpoints.
+    @State private var columns = 1
     @Environment(PlayerStateManager.self) private var player
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 12) {
+            // Plain VStack: `VideoGrid` must be the only lazy container (see its doc comment).
+            VStack(alignment: .leading, spacing: 12) {
                 if model.hasSubscriptions {
                     channelStrip
                     SectionHeader(title: "Latest from your subscriptions")
-                    ForEach(model.feedVideos) { video in
-                        VideoCard(video: video, onTap: { player.load(video) }, showsMoreMenu: true)
-                    }
+                    VideoGrid(
+                        videos: model.feedVideos,
+                        columns: columns,
+                        showsMoreMenu: true,
+                        onTap: { player.load($0) }
+                    )
                     if model.isLoading && model.feedVideos.isEmpty {
                         LoadingView()
                     } else if model.feedVideos.isEmpty && !model.isLoading {
@@ -38,6 +44,7 @@ struct SubscriptionsScreen: View {
             }
             .padding(.vertical, 8)
         }
+        .readVideoGridColumns(into: $columns)
         .navigationTitle("Subscriptions")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

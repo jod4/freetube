@@ -27,6 +27,11 @@ import YoutubeDL
 /// inherit the same single-threaded interpreter discipline as the download path. We never
 /// touch `YoutubeDL.downloadPythonModule` (a static method on the package) from the main actor.
 ///
+/// **Pinned version.** Downloads go through `YtDlpInstaller`, which installs one
+/// checksum-verified yt-dlp release instead of `releases/latest` — newer releases require
+/// Python 3.11, but the embedded interpreter is 3.10. The weekly refresh therefore just
+/// re-verifies (and repairs) the pinned file; bump the pin in `YtDlpInstaller` to update.
+///
 /// **EJS hash compatibility caveat.** yt-dlp validates its bundled EJS solver against
 /// `vendor.HASHES`. Our shipped `core.min.js`/`lib.min.js` are pinned at version `0.8.0` —
 /// if yt-dlp auto-updates past a major/minor version that changes those hashes, the EJS path
@@ -92,16 +97,16 @@ final class YtDlpUpdater {
     private func performUpdate(force: Bool) async -> UpdateResult {
         if isUpdating {
             log.info("yt-dlp update already in progress; ignoring concurrent request")
-            return lastResult ?? .failure(message: "Update already in progress")
+            return lastResult ?? .failure(message: String(localized: "Update already in progress"))
         }
         isUpdating = true
         defer { isUpdating = false }
 
         log.info("Downloading yt-dlp (force=\(force, privacy: .public))")
         do {
-            try await YoutubeDL.downloadPythonModule()
+            try await YtDlpInstaller.shared.ensureInstalled(force: true)
         } catch {
-            let msg = "Download failed: \(error.localizedDescription)"
+            let msg = String(localized: "Download failed: \(error.localizedDescription)")
             log.error("\(msg, privacy: .public)")
             let result = UpdateResult.failure(message: msg)
             lastResult = result
@@ -152,7 +157,7 @@ final class YtDlpUpdater {
             // the timestamp — next launch will retry. (If the download is corrupt,
             // retrying is the right behavior; if PythonKit isn't initialized yet,
             // retry-on-next-launch hits the initialized state.)
-            let msg = "Version read failed: \(error.localizedDescription)"
+            let msg = String(localized: "Version read failed: \(error.localizedDescription)")
             log.error("\(msg, privacy: .public)")
             let result = UpdateResult.failure(message: msg)
             lastResult = result

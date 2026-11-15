@@ -459,8 +459,8 @@ struct FullScreenPlayer: View {
     /// `42K views • 3 days ago • 4:32`, omitting any pieces we don't have.
     private func detailsStatsRow(video: Video) -> String {
         var parts: [String] = []
-        if let views = video.viewCount, views > 0 {
-            parts.append("\(formatCount(views)) views")
+        if !video.viewCountString.isEmpty {
+            parts.append(video.viewCountString)
         }
         if let published = video.publishedAt {
             let relative = RelativeDateTimeFormatter()
@@ -474,10 +474,7 @@ struct FullScreenPlayer: View {
     }
 
     private func formatCount(_ n: Int) -> String {
-        if n >= 1_000_000_000 { return String(format: "%.1fB", Double(n) / 1_000_000_000) }
-        if n >= 1_000_000 { return String(format: "%.1fM", Double(n) / 1_000_000) }
-        if n >= 1_000 { return String(format: "%.1fK", Double(n) / 1_000) }
-        return "\(n)"
+        n.compactFormatted
     }
 
     /// Best-effort: if `descriptionSnippet` is already on the `Video` (from search/home), we have

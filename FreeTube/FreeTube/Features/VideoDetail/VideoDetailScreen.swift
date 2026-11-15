@@ -73,7 +73,7 @@ struct VideoDetailScreen: View {
             Button {
                 Task { await model.toggleLike() }
             } label: {
-                Label("\(info.likeCount ?? 0)", systemImage: info.isLikedByUser ? "hand.thumbsup.fill" : "hand.thumbsup")
+                Label { Text(verbatim: "\(info.likeCount ?? 0)") } icon: { Image(systemName: info.isLikedByUser ? "hand.thumbsup.fill" : "hand.thumbsup") }
             }
             Button {
                 Task { await model.toggleDislike() }

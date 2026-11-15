@@ -50,6 +50,10 @@ public nonisolated func freetube_yt_dlp(
     // and calls `loadPythonModule()`, which initializes Python, downloads yt-dlp on first run,
     // and (critically for us) runs `injectFakePopen` — replacing `subprocess.Popen` with the
     // package's ffmpeg-only `Pop` class. After this returns we own the splice point.
+    // Install / verify the pinned yt-dlp first — otherwise YoutubeDL-iOS's
+    // `loadPythonModule()` would fetch `releases/latest`, which no longer supports our
+    // Python 3.10 interpreter (see `YtDlpInstaller`).
+    try await YtDlpInstaller.shared.ensureInstalled()
     let ytdlp = try await YtDlp()
 
     // Splice point: now that `injectFakePopen` has run, layer our extension on top. Our
@@ -68,6 +72,9 @@ public nonisolated func freetube_yt_dlp(
     ydl_opts["logger"] = makeLogger(name: "MyLogger", log)
     ydl_opts["progress_hooks"] = [makeProgressHook(progress)]
     ydl_opts["js_runtimes"] = PythonObject(["deno": ["path": PythonJSBridge.fakeDenoPath]])
+    // Writable cache dir for the preprocessed-player cache the bridge enables (see `YtDlpCache`).
+    YtDlpCache.prunePreprocessedPlayers()
+    ydl_opts["cachedir"] = PythonObject(YtDlpCache.directory.path)
 
     // Step 4: build the YoutubeDL downloader. `YtDlp.makeYoutubeDL(ydlOpts:)` is `internal` to
     // the package so we can't call it directly; we replicate it by importing the Python yt_dlp
@@ -105,6 +112,10 @@ public nonisolated func freetube_yt_dlp_extract_info(url: String) async throws -
     let ytdlpLog = AppLog(subsystem: "com.leshko.freetube", category: "ytdlp")
 
     bridgeLog.info("extract_info: about to await YtDlp() init")
+    // Install / verify the pinned yt-dlp first — otherwise YoutubeDL-iOS's
+    // `loadPythonModule()` would fetch `releases/latest`, which no longer supports our
+    // Python 3.10 interpreter (see `YtDlpInstaller`).
+    try await YtDlpInstaller.shared.ensureInstalled()
     let ytdlp = try await YtDlp()
     bridgeLog.info("extract_info: YtDlp ready, installing JS bridge before extract_info")
     PythonJSBridge.install()
@@ -185,9 +196,11 @@ public nonisolated func freetube_yt_dlp_extract_info(url: String) async throws -
     // 30s for an error; they cannot wait 3 minutes for the spinner.
     opts["socket_timeout"] = 30.0
     opts["extractor_args"] = PythonObject([
-        "youtube": ["player_client=tv_simply,tv_embedded,web_creator,mweb,web_safari,ios,android_vr", "formats=missing_pot"]
+        "youtube": ["player_client=visionos,tv_simply,web_creator,mweb,web_safari,ios,android_vr", "formats=missing_pot"]
     ] as [String: [String]])
     opts["js_runtimes"] = PythonObject(["deno": ["path": PythonJSBridge.fakeDenoPath]])
+    YtDlpCache.prunePreprocessedPlayers()
+    opts["cachedir"] = PythonObject(YtDlpCache.directory.path)
     // CLAUDE.md §15.3: yt-dlp's `YoutubeDL.__init__` runs an ffmpeg version probe
     // (`Popen(['ffmpeg', '-bsfs']).communicate()`). On iOS the YoutubeDL-iOS `Pop` class
     // accepts this argv but `communicate()` deadlocks the embedded Python forever.

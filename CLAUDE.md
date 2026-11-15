@@ -69,7 +69,7 @@ FreeTube/
 ├── Core/
 │   ├── Networking/        # YouTubeKit wrappers, one Service per response family
 │   ├── Auth/              # CookieStore, KeychainHelper, LoginCoordinator,
-│   │                      # SessionManager, SubscriptionRegistry, AuthState
+│   │                      # SessionManager, AuthState
 │   ├── Player/            # PlayerStateManager, PlaybackResolver, QueueManager,
 │   │                      # AudioSessionConfigurator, NowPlayingCenter,
 │   │                      # RemoteCommandCenter, StreamURLCache, HLSResourceLoaderDelegate
@@ -79,7 +79,8 @@ FreeTube/
 │   │                      # (yt-dlp ↔ JSCore glue), FreeTubeYtDlp (forked
 │   │                      # entry point that splices the bridge), EJSResources
 │   │                      # (loader for bundled yt-dlp-ejs JS)
-│   ├── Persistence/       # @Model types, PersistenceController, PersistenceWriter
+│   ├── Persistence/       # @Model types, PersistenceController, PersistenceWriter,
+│   │                      # SubscriptionRegistry (local, account-free subscriptions)
 │   └── Models/            # Domain types: Video, Channel, Playlist, Comment,
 │                          # VideoFormat, VideoQuality, ErrorState,
 │                          # PlaybackSource, UserPreferences, YouTubeServiceError
@@ -102,7 +103,7 @@ FreeTube/
 │   │                      # NowPlayingIndicator, SectionHeader, LoadingView
 │   └── Modifiers/         # ErrorToastModifier
 ├── Resources/
-│   ├── Localizable.xcstrings    # en / es / ru / fr / de, 236 keys
+│   ├── Localizable.xcstrings    # en / es / ru / fr / de, 250 keys
 │   ├── core.min.js              # yt-dlp-ejs N/SIG solver (~7 KB, see §15.11)
 │   └── lib.min.js               # meriyah + astring bundle (~152 KB, see §15.11)
 └── Assets.xcassets
@@ -142,10 +143,9 @@ Every YouTubeKit response type gets exactly one service method. Do not call `You
 | `AccountInfosResponse` | `AccountService.fetchAccountInfo()` |
 | `AccountLibraryResponse` | `AccountService.fetchLibrary()` |
 | `AccountPlaylistsResponse` | `AccountService.fetchPlaylists()` |
-| `AccountSubscriptionsFeedResponse` | `SubscriptionService.fetchFeed()` |
-| `AccountSubscriptionsResponse` | `SubscriptionService.fetchSubscriptions()` |
+| `AccountSubscriptionsFeedResponse` / `AccountSubscriptionsResponse` | **Not used** — subscriptions are local-only, see §9.7. `SubscriptionService.fetchFeed(forceRefresh:)` builds the feed from `ChannelService.fetchLatestVideos(channelID:)` per subscribed channel |
 | `HistoryResponse` / `RemoveVideoFromHistroryResponse` | `HistoryService.fetch()` / `remove(videoID:)` |
-| `SubscribeChannelResponse` / `UnsubscribeChannelResponse` | `SubscriptionService.subscribe(channelID:)` / `unsubscribe(channelID:)` |
+| `SubscribeChannelResponse` / `UnsubscribeChannelResponse` | **Not used** — `SubscriptionService.subscribe(to:)` / `unsubscribe(channelID:)` only write to `SubscriptionRegistry` |
 | `AllPossibleHostPlaylistsResponse` | `PlaylistService.fetchHostablePlaylists(videoID:)` |
 | `AddVideoToPlaylistResponse` / `RemoveVideoByIdFromPlaylistResponse` / `RemoveVideoFromPlaylistResponse` | `PlaylistService.add/remove*` |
 | `CreatePlaylistResponse` / `DeletePlaylistResponse` / `MoveVideoInPlaylistResponse` | `PlaylistService.create/delete/move*` |
@@ -169,7 +169,11 @@ This is what the codebase actually does today, not the original v1 design. The f
 2. **Cache check first.** `localFile(for:)` returns immediately if the mp4 already exists in `Documents/Downloads/<videoID>.mp4`.
 3. **Network gate.** `waitForAllowedNetwork()` blocks the call until the user-allowed network is up (Wi-Fi if `wifiOnlyDownloads` is set).
 4. **Submit to PythonRunner** with priority `.high` (`.userInitiated`) for play taps, `.low` (`.background`) for prefetch / Download All.
-5. yt-dlp is invoked with a hard-coded set of player clients (`player_client=tv_simply,tv_embedded,web_creator,mweb,web_safari,ios,android_vr;formats=missing_pot`) to maximise chances of getting a non-cipher format.
+5. yt-dlp is invoked with a hard-coded set of player clients (`player_client=visionos,tv_simply,web_creator,mweb,web_safari,ios,android_vr;formats=missing_pot`) and the format selector `bestvideo[height<=cap][vcodec^=avc1][ext=mp4]+bestaudio[ext=m4a]/best[height<=cap][ext=mp4]/best[ext=mp4]/best` (`DownloadManager.formatString`).
+   - **`visionos` must stay first.** It is the only client whose split DASH streams (H.264 360p–1080p + m4a) are served without a Proof-of-Origin token, and it needs no n/sig solving. Every other client's split streams are `MISSING POT`: YouTube serves the first ~1 MB, then HTTP 403 — with 10 MB chunks that's an immediate 403. Verified 2026-11 by range requests at several file offsets. `visionos` has no progressive format, so itag 18 (360p, token-free) still comes from `tv_simply` as the fallback.
+   - **`+`, never `,`, between video and audio.** `,` binds weakest in yt-dlp's grammar (`a/b/c,d` = "`a/b/c` *and also* `d`"): the old selector always picked progressive 360p plus a useless separate audio download. With `+` and no ffmpeg (step 6) yt-dlp writes both legs as `<id>.<v>+<a>.f<v>.mp4` / `.f<a>.m4a`; the Swift mux in step 8 joins them. If only one leg lands, the result is discarded (no silent video) and tier 2 runs.
+   - **`vcodec^=avc1`:** AV1 (itags 394–399) has no hardware decoder before A17/M3 (e.g. iPad 7), and AVPlayer can't play VP9/WebM.
+   - **Diagnosing:** on a Mac, run the pinned yt-dlp (`python3.14 yt-dlp --js-runtimes node --extractor-args "youtube:player_client=<c>" -j <url>`) per client, then fetch 1 MB `Range` requests mid-file from each format's `url` with its `http_headers`; `206` everywhere = usable, `206` at 0 + `403` later = PoT-gated.
 6. **Critical: `--ffmpeg-location /dev/null/no-ffmpeg` is forced**, so yt-dlp's Python-side ffmpeg merger never runs. yt-dlp's `subprocess.Popen` against ffmpeg reliably hangs Python in `Popen.communicate` on iOS. We mux ourselves in Swift afterwards (`muxToDestination` → `FFmpegRunner.shared.run`). See §15 on the workaround.
 7. **JS bridge installed before download**: `freetube_yt_dlp` (our forked entry point in `Core/JavaScript/FreeTubeYtDlp.swift`) splices `PythonJSBridge.install()` between YoutubeDL-iOS's `injectFakePopen` and `ydl.download`. This wires `JavaScriptCore` as the `deno` runtime for yt-dlp's EJS-based N/SIG challenge solver — formats that previously hit `n challenge solving failed` now resolve in-process. Full architecture in §15.11.
 8. If yt-dlp produces output, optionally mux video+audio and persist as `DownloadedVideo` row.
@@ -205,7 +209,8 @@ If all four miss, `loadState = .failed` and the user sees an error toast.
 | Persists to `DownloadedVideo` | Yes | Yes | No |
 | Offline playback | Yes | Yes | No |
 | Works for PoT-locked content | No | No | Often yes (HLS) |
-| Latency (cold) | ~3–10s | ~2–5s | ~1–2s |
+| Quality | Up to the setting (720p default, via `visionos` split streams) | 360p progressive, or split if URLs work | Adaptive |
+| Latency (cold) | ~10–15s on iPad 7 (extraction + download + mux) | ~2–5s | ~1–2s |
 
 ### Shape
 
@@ -247,7 +252,7 @@ enum PlaybackSource {
 4. Required cookies (all must be present): `SAPISID`, `__Secure-3PAPISID`, `LOGIN_INFO`, `SID`, `HSID`, `SSID`, `APISID`.
 5. Cookies are serialized as a single Cookie-header string and stored in Keychain under `com.leshko.freetube.cookies` via `KeychainHelper`.
 6. On every app launch, `SessionManager.bootstrap()` reads from Keychain and assigns to `YouTubeModel.shared.cookies` plus `YouTubeKitClient.shared.applyCookies(...)`.
-7. **`SubscriptionRegistry`** persists the user's subscribed channel IDs in `UserDefaults` (`com.leshko.freetube.subscriptions`). Subscribe/unsubscribe optimistically flips this **and** calls the YouTube endpoint. Needed because YouTubeKit's `subscribeStatus` parser doesn't follow `pageHeaderRenderer` entity-key indirection — channel screens were always showing "Subscribe" even on subscribed channels until this cache was added.
+7. **Subscriptions are account-free** (like desktop FreeTube). `SubscriptionRegistry` (`Core/Persistence/`) stores `[LocalSubscription]` (channel ID, name, handle, avatar URL, date) as JSON in `UserDefaults` (`com.leshko.freetube.subscriptions`; the legacy `[String]` ID format is migrated on load). Subscribe/unsubscribe never call YouTube, and sign-in/sign-out never touches the list. The feed (`SubscriptionService.fetchFeed`) fetches each channel's Videos tab anonymously (max 6 concurrent, 15 videos/channel, 15-min in-memory cache), sorted by the approximate age that `RelativeAgeParser` reads from YouTube's localized "3 days ago" text (en/de/es/fr/ru). `ChannelService.mapChannel` takes `isSubscribed` from the registry only. UI: Library → Subscriptions (always visible) → `SubscriptionsScreen` → `SubscribedChannelsScreen`.
 8. **`AuthState`** (an `@Observable` singleton) drives root navigation: `.loggedIn` / `.loggedOut` / `.unknown`. On `cookieExpired` / 401-equivalent failures, `SessionManager.handleExpiredSession()` wipes Keychain + sets `AuthState.loggedOut` and the root re-routes to Login.
 
 ---
@@ -334,9 +339,11 @@ log.error("Stream extraction failed: \(error.localizedDescription, privacy: .pub
 
 ## 14. Localization
 
-- `Localizable.xcstrings` (Apple String Catalog format), 236 keys, fully translated for **en / es / ru / fr / de**. `sourceLanguage: "en"`.
+- `Localizable.xcstrings` (Apple String Catalog format), 250 keys, fully translated for **en / es / ru / fr / de**. `sourceLanguage: "en"`.
 - Add new strings by using `String(localized:)` / `LocalizedStringKey` in code; Xcode's build-time extractor populates the catalog. After a build, open `Localizable.xcstrings` and translate any new `state: "new"` entries.
 - **Non-translatable strings must never enter the catalog. Emit them with `Text(verbatim:)`, not a localizable `Text`.** A string whose entire content is format specifiers (`%@`, `%lld`, `%lld%%`), punctuation/symbols (`•`, `·`, `≈`, `,`), or brand names (`yt-dlp`, `freetube.io`) — with no actual words — has nothing to translate. The root cause is code: `Text("\(x) · \(n)%")` makes SwiftUI treat the literal as a `LocalizedStringKey`, so the extractor auto-adds junk keys like `%@ · %lld%%` on every build. Marking them `shouldTranslate: false` only suppresses *translation* — the key still gets re-added and clutters the catalog. **Fix at the source:** wrap these in `Text(verbatim: "...")` (for `.accessibilityLabel`, pass `Text(verbatim:)` explicitly). Then delete the orphaned keys from `Localizable.xcstrings`; once the code uses `verbatim`, the extractor won't recreate them. Keys removed this way (all now `verbatim` in code): `%@ · %lld%%` (FetchProbeView), `%lld%%` (FetchProbeView/DownloadsScreen), `≈ %@` (FetchProbeView), `• %@` (DownloadsScreen), `%lld %@ • %@` (DownloadsScreen), `%lld` (DownloadsScreen), `%@, %@` (VideoCard accessibility), `yt-dlp` (SettingsScreen header). When you write a new pure-format/symbol/brand string, reach for `Text(verbatim:)` up front so it never reaches the catalog.
+- **Never pass UI copy through a `String` parameter.** `Text(someString)` renders verbatim and skips the catalog — this is how "No downloads", the Library menu, the search prompt, etc. stayed English while their translations sat unused (marked `stale`). Reusable views/helpers take `LocalizedStringKey` (or a `Text`) for copy — see `EmptyStateView`, `SectionHeader` (`init(verbatim:)` for YouTube content), the `menuRow` helpers in `LibraryScreen` / `ChannelScreen`. Non-view code that produces display text (error descriptions, download state messages, count lines) uses `String(localized:)`. A key flagged `extractionState: "stale"` while the literal still exists in code is the tell-tale symptom.
+- Counts use one key per phrase with plural variations (`Text("\(n) videos")` → `%lld videos`), never a hand-built `"video" : "videos"` ternary. Abbreviated numbers go through `Int.compactFormatted` (locale-aware "1,2 Mio.").
 - Pluralization uses Apple's CLDR plural rules through the catalog's variation editor.
 - If you add a string that contains a literal source-file reference (e.g. an internal `ContentView` placeholder), use a clean user-facing value in the translation columns even if the key looks debug-ish.
 
@@ -385,9 +392,9 @@ Using `.default()` reuses prior session cookies and captures stale ones. Use `.n
 
 When `.youtube.com` and `.google.com` versions of the same cookie are both present (post-login), YouTube only accepts the `.youtube.com` value. `CookieStore.dedupe` enforces this — don't simplify it to a length-based tiebreak.
 
-### 15.9 `SubscriptionRegistry` exists because YouTubeKit can't parse subscribe state reliably
+### 15.9 Subscriptions are local; ignore YouTubeKit's `subscribeStatus`
 
-YouTubeKit's `subscribeStatus` doesn't follow `pageHeaderRenderer` entity-key indirection. We persist subscribe state in `UserDefaults` and reconcile on subscribe/unsubscribe.
+Subscriptions live only in `SubscriptionRegistry` (§9.7). `ChannelInfosResponse.subscribeStatus` reflects a signed-in account's YouTube-side state (and is unreliable anyway — it doesn't follow `pageHeaderRenderer` entity-key indirection), so it is deliberately not read. Feed sorting depends on `RelativeAgeParser`; if YouTube changes its relative-time phrasing or the app gains a UI language, extend the unit tables there.
 
 ### 15.10 Don't run heavy work from SwiftUI bodies
 
@@ -408,6 +415,10 @@ We fake `deno` to yt-dlp using `JavaScriptCore`. The bridge is **five pieces**, 
 4. **Pop class monkey-patch (not `subprocess.Popen`)** — YoutubeDL-iOS replaces `subprocess.Popen` with its ffmpeg-only `Pop` class at init time. Then `yt_dlp.utils.Popen` declares `class Popen(subprocess.Popen):` — which captures `Pop` as its base **at class definition time, frozen**. Rebinding `subprocess.Popen` later would NOT change that MRO. The fix is to monkey-patch `Pop.__init__` and `Pop.communicate` directly; `yt_dlp.utils.Popen` looks up methods dynamically via `super()`, so calls now hit our extended handlers. For argv[0] equal to our fake path (`/dev/null/freetube-deno`), we capture stdin, pass to `builtins.eval_js`, return the JS result on stdout. Everything else falls through to the original `Pop` (preserving ffmpeg passthrough).
 
 5. **`js_runtimes` ydl_opt** — even with the runtime detection stubbed, yt-dlp's `_js_runtimes` dict only gets populated from the `js_runtimes` ydl_opt. `FreeTubeYtDlp.swift` adds `ydl_opts["js_runtimes"] = {"deno": {"path": fakeDenoPath}}` so the dict has an entry to apply (3) to.
+
+**PythonKit gotcha (this broke the bridge silently):** `PythonFunction { (x: PythonObject) in … }` receives the *first argument itself*, not the argument tuple — `x[0]` then indexes the first *character* of a string argument. `eval_js` used to do exactly that, so JSC evaluated one character, returned `""`, and yt-dlp reported `JSONDecodeError` + `n challenge solving failed` → HTTP 403 on every download. Always use the `[PythonObject]` overload for Python-callable Swift functions. `[JSBridge] [eval_js] in=…B out=…B …ms` in the log shows the real payload size (~3 MB in / ~4 MB out, ~5 s on an iPad 7).
+
+**yt-dlp version is pinned** (`YtDlpInstaller`, SHA-256-verified) because the embedded CPython is **3.10** and yt-dlp ≥ 2026.10.26 requires 3.11 (`ImportError: unsupported version of Python` on import). The weekly `YtDlpUpdater` refresh only re-verifies/repairs the pinned file. To bump: the new tag must still accept 3.10, vendor the same yt-dlp-ejs major/minor as `EJSResources.version`, and its `SHA2-256SUMS` entry goes into `YtDlpInstaller.sha256`.
 
 **Maintenance:** when YoutubeDL-iOS bumps its yt-dlp version, re-pull `yt-dlp-ejs` from PyPI to match (check upstream `vendor.HASHES`), update `EJSResources.version`, drop new `core.min.js`/`lib.min.js` into `Resources/`. yt-dlp validates major/minor version of the script against its embedded `_SCRIPT_VERSION`; mismatch silently disables the EJS path.
 

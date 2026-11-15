@@ -309,6 +309,11 @@ final class DownloadManager: TemporaryDownloading {
     /// Per-video human-readable phase label ("video", "audio", "muxing"). yt-dlp downloads multiple
     /// streams sequentially under the same id, so we surface which one is currently in-flight to
     /// avoid the confusing "Downloading 100%" → "Downloading 0%" → "Downloading 100%" sequence.
+    ///
+    /// **Also the "bytes are flowing" signal:** an entry exists only once a stream transfer has
+    /// actually started (first yt-dlp progress callback, or a tier-2 stream fetch). It is cleared
+    /// when a new attempt starts and when the attempt completes or fails, so the player can show
+    /// "Preparing…" during yt-dlp's extraction + n/sig solving instead of a frozen "0%".
     private(set) var phaseByVideoID: [String: String] = [:]
 
     private var tasks: [String: DownloadTaskSnapshot] = [:]
@@ -502,8 +507,13 @@ final class DownloadManager: TemporaryDownloading {
             // order. The default yt-dlp list without a JS runtime is so narrow it commonly
             // hits "This video is not available" on kids / region-locked / age-gated videos.
             // We try clients with different PoT requirements:
-            //   - `tv_simply` (TVHTML5 simply-embedded-player) — broadest format coverage.
-            //   - `tv_embedded` — TV embedded player, often exempt from PoT enforcement.
+            //   - `visionos` — **first on purpose.** As of yt-dlp 2026.10 it is the only client
+            //     whose split DASH streams (H.264 video up to 1080p, m4a audio) are served
+            //     without a Proof-of-Origin token *and* need no n/sig solving. Every other
+            //     client's split streams are "MISSING POT": YouTube serves the first ~1 MB and
+            //     then 403s — which is why the m4a leg always failed and playback was stuck at
+            //     360p. It has no progressive format, so itag 18 still comes from `tv_simply`.
+            //   - `tv_simply` (TVHTML5 simply-embedded-player) — progressive itag 18 (360p).
             //   - `web_creator` — creator-mode profile, also frequently PoT-exempt.
             //   - `mweb` — mobile web, broad coverage including kids content.
             //   - `web_safari` — desktop Safari, useful for live + premium content.
@@ -520,7 +530,7 @@ final class DownloadManager: TemporaryDownloading {
             // had `"...formats require a GVS PO Token which was not provided. They will be
             // skipped..."` in the log for every client we tried, leaving zero usable formats.
             "--extractor-args",
-            "youtube:player_client=tv_simply,tv_embedded,web_creator,mweb,web_safari,ios,android_vr;formats=missing_pot",
+            "youtube:player_client=visionos,tv_simply,web_creator,mweb,web_safari,ios,android_vr;formats=missing_pot",
             // **Concurrent fragment downloads.** For HLS/DASH streams yt-dlp downloads each
             // chunk sequentially by default — bumping this lets it fetch N fragments at once
             // over the same HTTP/2 connection. Doesn't change the total bytes pulled but cuts
@@ -540,6 +550,8 @@ final class DownloadManager: TemporaryDownloading {
 
         log.info("yt-dlp[\(video.id, privacy: .public)] argv=\(argv.joined(separator: " "), privacy: .public)")
         log.debug("yt-dlp[\(video.id, privacy: .public)] → state=downloading(0)")
+        // New attempt: no transfer has started yet (see `phaseByVideoID`).
+        phaseByVideoID.removeValue(forKey: video.id)
         publish(snapshot: DownloadTaskSnapshot(
             id: snapshotID,
             videoID: video.id,
@@ -673,7 +685,7 @@ final class DownloadManager: TemporaryDownloading {
                     id: snapshotID,
                     videoID: video.id,
                     title: video.title,
-                    state: .failed("Could not combine video + audio"),
+                    state: .failed(String(localized: "Could not combine video + audio")),
                     createdAt: .now
                 ))
                 throw YouTubeServiceError.streamExtractionFailed
@@ -686,7 +698,16 @@ final class DownloadManager: TemporaryDownloading {
                     try? FileManager.default.removeItem(at: url)
                 }
             }.value
-        } else if let single = intermediates.first {
+        } else if intermediates.contains(where: { $0.lastPathComponent.contains("+") }) {
+            // A `video+audio` pair was selected but only one leg landed (e.g. audio 403'd).
+            // Don't promote a silent video-only file to the destination — fall through to the
+            // tier-2 fallback below instead.
+            log.error("yt-dlp[\(video.id, privacy: .public)] split download incomplete: \(intermediates.map(\.lastPathComponent).joined(separator: ", "), privacy: .public)")
+            let toRemove = intermediates
+            await Task.detached(priority: .utility) {
+                for url in toRemove { try? FileManager.default.removeItem(at: url) }
+            }.value
+        } else if let single = intermediates.first(where: { ["mp4", "m4a", "webm", "mkv"].contains($0.pathExtension.lowercased()) }) {
             // Single combined progressive file — just rename it to the destination.
             log.info("yt-dlp[\(video.id, privacy: .public)] single-file mode (no mux needed): \(single.lastPathComponent, privacy: .public)")
             try? FileManager.default.removeItem(at: destination)
@@ -711,7 +732,7 @@ final class DownloadManager: TemporaryDownloading {
                     id: snapshotID,
                     videoID: video.id,
                     title: video.title,
-                    state: .failed("Download finished but file not found"),
+                    state: .failed(String(localized: "Download finished but file not found")),
                     createdAt: .now
                 ))
                 throw YouTubeServiceError.streamExtractionFailed
@@ -1315,25 +1336,31 @@ final class DownloadManager: TemporaryDownloading {
         }
     }
 
-    /// We use `,` (download as separate files) instead of `+` (yt-dlp's merger) because yt-dlp's
-    /// ffmpeg invocation hangs on iOS — see `muxToDestination` for the Swift-side replacement.
+    /// Split H.264 + m4a first (served token-free by the `visionos` client, up to the height
+    /// cap), progressive mp4 (itag 18, 360p) as the fallback.
+    ///
+    /// **`+`, not `,`.** `,` binds weakest in yt-dlp's grammar, so the old
+    /// `best…/bestvideo…,bestaudio…` meant "progressive 360p, *and additionally* an audio
+    /// file" — the split video was never chosen and the extra audio download always 403'd.
+    /// `+` asks for a video+audio *pair*. yt-dlp's own merger never runs: `--ffmpeg-location`
+    /// points nowhere (§15.3), so it writes both streams (`<stem>.<a>+<b>.f<a>.mp4` /
+    /// `.f<b>.m4a`) and the Swift-side `muxToDestination` joins them.
+    ///
+    /// **`vcodec^=avc1`:** AV1 (itags 394–399) has no hardware decoder before A17/M3 — an
+    /// iPad 7 can't play it — and VP9/WebM isn't playable by AVPlayer at all.
     private static func formatString(for quality: VideoQuality) -> String {
         if quality == .audioOnly {
             return "bestaudio[ext=m4a]/bestaudio"
         }
         if let cap = quality.heightCap, cap > 0 {
             return [
-                // 1. Single combined progressive mp4 within the height cap (itag 18 for 360p).
+                "bestvideo[height<=\(cap)][vcodec^=avc1][ext=mp4]+bestaudio[ext=m4a]",
                 "best[height<=\(cap)][ext=mp4]",
-                // 2. Same but any container (covers rare webm progressive).
-                "best[height<=\(cap)]",
-                // 3. Fall back to split DASH streams — our Swift-side mux joins them.
-                "bestvideo[height<=\(cap)][ext=mp4],bestaudio[ext=m4a]",
-                // 4. Whatever yt-dlp considers best as a last resort.
+                "best[ext=mp4]",
                 "best"
             ].joined(separator: "/")
         }
-        return "best[ext=mp4]/best/bestvideo[ext=mp4],bestaudio[ext=m4a]"
+        return "bestvideo[vcodec^=avc1][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
     }
 
     // MARK: - Networking gate + snapshots
@@ -1364,8 +1391,10 @@ final class DownloadManager: TemporaryDownloading {
             progressByVideoID[snapshot.videoID] = value
         } else if case .completed = snapshot.state {
             progressByVideoID.removeValue(forKey: snapshot.videoID)
+            phaseByVideoID.removeValue(forKey: snapshot.videoID)
         } else if case .failed = snapshot.state {
             progressByVideoID.removeValue(forKey: snapshot.videoID)
+            phaseByVideoID.removeValue(forKey: snapshot.videoID)
         }
         publishSnapshots()
     }

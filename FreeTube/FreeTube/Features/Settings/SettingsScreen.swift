@@ -62,7 +62,7 @@ struct SettingsScreen: View {
                     }
                     Picker("Parallel fragments", selection: Bindable(model).concurrentFragments) {
                         ForEach([1, 2, 4, 8, 16], id: \.self) { value in
-                            Text(value == 1 ? "1 (sequential)" : "\(value)").tag(value)
+                            (value == 1 ? Text("1 (sequential)") : Text(verbatim: "\(value)")).tag(value)
                         }
                     }
                 } header: {
@@ -73,12 +73,24 @@ struct SettingsScreen: View {
 
                 Section {
                     LabeledContent("Version") {
-                        Text(model.ytDlpVersion.isEmpty ? "Not yet loaded" : model.ytDlpVersion)
+                        Group {
+                            if model.ytDlpVersion.isEmpty {
+                                Text("Not yet loaded")
+                            } else {
+                                Text(verbatim: model.ytDlpVersion)
+                            }
+                        }
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                     }
                     LabeledContent("Last updated") {
-                        Text(model.ytDlpLastUpdatedDisplay ?? "Never")
+                        Group {
+                            if let display = model.ytDlpLastUpdatedDisplay {
+                                Text(verbatim: display)
+                            } else {
+                                Text("Never")
+                            }
+                        }
                             .foregroundStyle(.secondary)
                     }
                     Button {

@@ -1,135 +1,186 @@
 import Foundation
 import OSLog
-import YouTubeKit
 
 struct SubscriptionFeed: Sendable {
     let videos: [Video]
-    let continuationToken: String?
-}
-
-struct SubscriptionsPage: Sendable {
-    let channels: [Channel]
-    let continuationToken: String?
+    /// Channels whose Videos tab couldn't be fetched this round (network error, removed channel).
+    /// The feed is still returned with everything that did load.
+    let failedChannelCount: Int
 }
 
 protocol SubscriptionServicing: Sendable {
-    func fetchFeed() async throws -> SubscriptionFeed
-    func fetchSubscriptions() async throws -> [Channel]
-    func fetchSubscriptionsPage() async throws -> SubscriptionsPage
-    func fetchSubscriptionsMore(continuation: String) async throws -> SubscriptionsPage
-    func subscribe(channelID: String) async throws
-    func unsubscribe(channelID: String) async throws
+    func fetchFeed(forceRefresh: Bool) async throws -> SubscriptionFeed
+    func subscribedChannels() async -> [Channel]
+    func subscribe(to channel: Channel) async
+    func unsubscribe(channelID: String) async
 }
 
-/// Wraps `AccountSubscriptionsFeedResponse`, `AccountSubscriptionsResponse`,
-/// `SubscribeChannelResponse`, `UnsubscribeChannelResponse`.
+/// **Account-free subscriptions.** Subscribe / unsubscribe only write to the on-device
+/// `SubscriptionRegistry` — nothing is sent to YouTube and no sign-in is needed.
+///
+/// The feed is assembled client-side: for every subscribed channel we fetch the first page of its
+/// Videos tab anonymously via `ChannelService.fetchLatestVideos(channelID:)`, merge, and sort by
+/// the approximate age parsed from YouTube's relative "time posted" text (`RelativeAgeParser`).
+/// That's one or two browse requests per channel, run with bounded concurrency, and the merged
+/// result is cached in memory for `FeedCache.ttl` so tab switches don't refetch.
+///
+/// Deliberately does *not* use `AccountSubscriptionsFeedResponse` / `AccountSubscriptionsResponse`
+/// / `SubscribeChannelResponse` / `UnsubscribeChannelResponse` — those require cookies.
 final class SubscriptionService: SubscriptionServicing {
-    private let client: YouTubeKitClient
+    /// Parallel channel fetches. High enough to keep a 100-channel refresh in the seconds range,
+    /// low enough not to look like a burst to YouTube's rate limiter.
+    private static let maxConcurrentFetches = 6
+    /// Videos taken from each channel's first page before merging.
+    private static let videosPerChannel = 15
+    /// Hard cap on the merged feed length.
+    private static let maxFeedLength = 300
+
+    private let channels: any ChannelServicing
     private let log = AppLog(subsystem: "com.leshko.freetube", category: "SubscriptionService")
 
-    nonisolated init(client: YouTubeKitClient = .shared) {
-        self.client = client
+    nonisolated init(channels: any ChannelServicing = ChannelService()) {
+        self.channels = channels
     }
 
-    func fetchFeed() async throws -> SubscriptionFeed {
-        log.info("Fetching subscriptions feed")
-        throw YouTubeServiceError.notAuthenticated
+    // MARK: - Subscriptions
+
+    func subscribedChannels() async -> [Channel] {
+        SubscriptionRegistry.shared.channels
     }
 
-    func fetchSubscriptions() async throws -> [Channel] {
-        try await fetchSubscriptionsPage().channels
+    /// Records a local subscription. Never fails — there's no remote call.
+    func subscribe(to channel: Channel) async {
+        log.info("[subs] subscribe channelID=\(channel.id, privacy: .public)")
+        SubscriptionRegistry.shared.add(channel)
     }
 
-    /// First page of the user's subscribed channels. Uses `AccountSubscriptionsResponse`, which
-    /// returns up to ~30 channels per page plus a continuation token for the next batch.
-    func fetchSubscriptionsPage() async throws -> SubscriptionsPage {
-        log.info("[subs] fetchSubscriptionsPage")
-        do {
-            let response = try await AccountSubscriptionsResponse.sendThrowingRequest(
-                youtubeModel: client.model,
-                data: [:]
-            )
-            if response.isDisconnected {
-                log.notice("[subs] fetchSubscriptionsPage: response isDisconnected=true")
-                throw YouTubeServiceError.notAuthenticated
-            }
-            let channels = response.results.map(Mappers.channel(from:))
-            log.info("[subs] fetchSubscriptionsPage: \(channels.count, privacy: .public) channels, more=\(response.continuationToken != nil, privacy: .public)")
-            return SubscriptionsPage(channels: channels, continuationToken: response.continuationToken)
-        } catch let error as YouTubeServiceError {
-            throw error
-        } catch {
-            log.error("[subs] fetchSubscriptionsPage failed: \(String(describing: error), privacy: .public)")
-            throw YouTubeServiceError.network(error)
-        }
-    }
-
-    func fetchSubscriptionsMore(continuation: String) async throws -> SubscriptionsPage {
-        log.info("[subs] fetchSubscriptionsMore")
-        do {
-            let response = try await AccountSubscriptionsResponse.Continuation.sendThrowingRequest(
-                youtubeModel: client.model,
-                data: [.continuation: continuation]
-            )
-            if response.isDisconnected {
-                throw YouTubeServiceError.notAuthenticated
-            }
-            let channels = response.results.map(Mappers.channel(from:))
-            return SubscriptionsPage(channels: channels, continuationToken: response.continuationToken)
-        } catch let error as YouTubeServiceError {
-            throw error
-        } catch {
-            log.error("[subs] fetchSubscriptionsMore failed: \(String(describing: error), privacy: .public)")
-            throw YouTubeServiceError.network(error)
-        }
-    }
-
-    /// Subscribes to the channel via YouTubeKit's `SubscribeChannelResponse`. Requires the user
-    /// to be signed in (cookies on the model). Surfaces `.notAuthenticated` if YouTube's
-    /// response carries `isDisconnected=true`, `.network(_)` for any transport error.
-    func subscribe(channelID: String) async throws {
-        log.info("[subs] subscribe channelID=\(channelID, privacy: .public)")
-        do {
-            let response = try await SubscribeChannelResponse.sendThrowingRequest(
-                youtubeModel: client.model,
-                data: [.browseId: channelID]
-            )
-            if response.isDisconnected {
-                log.notice("[subs] subscribe: response isDisconnected=true (cookies rejected)")
-                throw YouTubeServiceError.notAuthenticated
-            }
-            // Update the local registry so any ChannelScreen rendered after this call shows
-            // "Subscribed" — YouTubeKit's `subscribeStatus` parser is unreliable on the modern
-            // `pageHeaderRenderer` layout, so we can't depend on the next channel fetch to
-            // surface the correct state.
-            await MainActor.run { SubscriptionRegistry.shared.add(channelID) }
-            log.info("[subs] subscribe OK channelID=\(channelID, privacy: .public)")
-        } catch let error as YouTubeServiceError {
-            throw error
-        } catch {
-            log.error("[subs] subscribe failed: \(String(describing: error), privacy: .public)")
-            throw YouTubeServiceError.network(error)
-        }
-    }
-
-    func unsubscribe(channelID: String) async throws {
+    func unsubscribe(channelID: String) async {
         log.info("[subs] unsubscribe channelID=\(channelID, privacy: .public)")
-        do {
-            let response = try await UnsubscribeChannelResponse.sendThrowingRequest(
-                youtubeModel: client.model,
-                data: [.browseId: channelID]
-            )
-            if response.isDisconnected {
-                log.notice("[subs] unsubscribe: response isDisconnected=true")
-                throw YouTubeServiceError.notAuthenticated
-            }
-            await MainActor.run { SubscriptionRegistry.shared.remove(channelID) }
-            log.info("[subs] unsubscribe OK channelID=\(channelID, privacy: .public)")
-        } catch let error as YouTubeServiceError {
-            throw error
-        } catch {
-            log.error("[subs] unsubscribe failed: \(String(describing: error), privacy: .public)")
-            throw YouTubeServiceError.network(error)
+        SubscriptionRegistry.shared.remove(channelID)
+    }
+
+    // MARK: - Feed
+
+    /// Latest videos across all subscribed channels, newest first. Served from the in-memory cache
+    /// when it is fresh and was built for the same set of channels, unless `forceRefresh`.
+    /// Throws only when there are subscriptions and *every* channel fetch failed.
+    func fetchFeed(forceRefresh: Bool) async throws -> SubscriptionFeed {
+        let subscriptions = SubscriptionRegistry.shared.entries
+        guard !subscriptions.isEmpty else {
+            return SubscriptionFeed(videos: [], failedChannelCount: 0)
         }
+        let ids = Set(subscriptions.map(\.id))
+        if !forceRefresh, let cached = await FeedCache.shared.feed(for: ids) {
+            return cached
+        }
+
+        log.info("[subs] building feed for \(subscriptions.count, privacy: .public) channels")
+        let started = Date()
+        let results = await fetchAll(channelIDs: subscriptions.map(\.id))
+
+        var ranked: [RankedVideo] = []
+        var failed = 0
+        var lastError: Error?
+        for result in results {
+            switch result {
+            case .success(let latest):
+                SubscriptionRegistry.shared.updateMetadata(from: latest.channel)
+                for (index, video) in latest.videos.prefix(Self.videosPerChannel).enumerated() {
+                    ranked.append(RankedVideo(
+                        video: video,
+                        age: RelativeAgeParser.age(from: video.publishedRelative),
+                        positionInChannel: index
+                    ))
+                }
+            case .failure(let error):
+                failed += 1
+                lastError = error
+            }
+        }
+
+        if failed == results.count, let lastError {
+            log.error("[subs] feed: all \(failed, privacy: .public) channel fetches failed")
+            throw lastError
+        }
+
+        ranked.sort(by: RankedVideo.newerFirst)
+        let feed = SubscriptionFeed(
+            videos: ranked.prefix(Self.maxFeedLength).map(\.video),
+            failedChannelCount: failed
+        )
+        await FeedCache.shared.store(feed, for: ids)
+        log.info("[subs] feed built: \(feed.videos.count, privacy: .public) videos, \(failed, privacy: .public) failed, \(Date().timeIntervalSince(started), privacy: .public)s")
+        return feed
+    }
+
+    /// Fetches every channel's latest videos with at most `maxConcurrentFetches` in flight.
+    private func fetchAll(channelIDs: [String]) async -> [Result<ChannelLatestVideos, Error>] {
+        let service = channels
+        return await withTaskGroup(of: Result<ChannelLatestVideos, Error>.self) { group in
+            var pending = channelIDs.makeIterator()
+            var results: [Result<ChannelLatestVideos, Error>] = []
+            results.reserveCapacity(channelIDs.count)
+            var inFlight = 0
+
+            while true {
+                while inFlight < Self.maxConcurrentFetches, let id = pending.next() {
+                    inFlight += 1
+                    group.addTask {
+                        do {
+                            return .success(try await service.fetchLatestVideos(channelID: id))
+                        } catch {
+                            return .failure(error)
+                        }
+                    }
+                }
+                guard let result = await group.next() else { break }
+                inFlight -= 1
+                results.append(result)
+            }
+            return results
+        }
+    }
+}
+
+// MARK: - Ranking
+
+private struct RankedVideo {
+    let video: Video
+    /// Approximate age in seconds; nil when YouTube's text couldn't be parsed.
+    let age: TimeInterval?
+    /// Index in the channel's newest-first listing — tie-breaker for equal parsed ages
+    /// ("2 days ago" covers a whole day).
+    let positionInChannel: Int
+
+    static func newerFirst(_ lhs: RankedVideo, _ rhs: RankedVideo) -> Bool {
+        switch (lhs.age, rhs.age) {
+        case let (l?, r?) where l != r: return l < r
+        case (.some, nil): return true
+        case (nil, .some): return false
+        default: return lhs.positionInChannel < rhs.positionInChannel
+        }
+    }
+}
+
+// MARK: - Cache
+
+/// In-memory cache of the last built feed. Shared across `SubscriptionService` instances (each
+/// view model creates its own). Keyed by the exact set of channel IDs so subscribing or
+/// unsubscribing invalidates it automatically.
+private actor FeedCache {
+    static let shared = FeedCache()
+    static let ttl: TimeInterval = 15 * 60
+
+    private var entry: (ids: Set<String>, feed: SubscriptionFeed, builtAt: Date)?
+
+    func feed(for ids: Set<String>) -> SubscriptionFeed? {
+        guard let entry, entry.ids == ids, Date().timeIntervalSince(entry.builtAt) < Self.ttl else {
+            return nil
+        }
+        return entry.feed
+    }
+
+    func store(_ feed: SubscriptionFeed, for ids: Set<String>) {
+        entry = (ids, feed, Date())
     }
 }

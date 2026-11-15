@@ -1,43 +1,41 @@
 import Foundation
 import Observation
 
+/// Drives `SubscriptionsScreen`: the channel chips (straight from the local
+/// `SubscriptionRegistry`, so they update the moment you subscribe elsewhere) and the merged
+/// latest-videos feed built by `SubscriptionService`. No account involved.
 @available(iOS 17.0, *)
 @Observable
 @MainActor
 final class SubscriptionsViewModel {
     private(set) var feedVideos: [Video] = []
-    private(set) var channels: [Channel] = []
     private(set) var isLoading: Bool = false
+    /// Number of channels that failed to load in the last refresh (shown as a footnote).
+    private(set) var failedChannelCount: Int = 0
     var errorState: ErrorState?
 
     private let service: any SubscriptionServicing
+    private let registry = SubscriptionRegistry.shared
 
     init(service: any SubscriptionServicing = SubscriptionService()) {
         self.service = service
     }
 
-    func load() async {
+    var channels: [Channel] { registry.channels }
+
+    var hasSubscriptions: Bool { !registry.entries.isEmpty }
+
+    /// Changes whenever the subscription set changes — the screen keys its `.task` on this so the
+    /// feed reloads after subscribing / unsubscribing.
+    var subscriptionKey: String { registry.entries.map(\.id).sorted().joined(separator: ",") }
+
+    func load(forceRefresh: Bool = false) async {
         isLoading = true
         defer { isLoading = false }
-        async let feed = service.fetchFeed()
-        async let subs = service.fetchSubscriptions()
         do {
-            let result = try await feed
-            feedVideos = result.videos
-            channels = try await subs
-        } catch {
-            errorState = ErrorState(from: error)
-        }
-    }
-
-    func toggleSubscribe(_ channel: Channel) async {
-        do {
-            if channel.isSubscribed {
-                try await service.unsubscribe(channelID: channel.id)
-            } else {
-                try await service.subscribe(channelID: channel.id)
-            }
-            await load()
+            let feed = try await service.fetchFeed(forceRefresh: forceRefresh)
+            feedVideos = feed.videos
+            failedChannelCount = feed.failedChannelCount
         } catch {
             errorState = ErrorState(from: error)
         }

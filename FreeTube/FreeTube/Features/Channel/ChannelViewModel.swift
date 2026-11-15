@@ -44,48 +44,35 @@ final class ChannelViewModel {
         }
     }
 
-    /// Toggles the user's subscription to this channel. Two-step state update:
-    ///   1. Call the subscribe/unsubscribe API and update `SubscriptionRegistry` (the latter
-    ///      happens inside the service).
-    ///   2. **Optimistically flip the local `Channel.isSubscribed` immediately** rather than
-    ///      waiting on a full `load()` round-trip. The reload is unreliable because YouTubeKit
-    ///      can't always parse the new subscription state out of the channel response (the
-    ///      modern `pageHeaderRenderer` layout puts it behind an entity-key indirection the
-    ///      library doesn't follow). With the optimistic flip plus `SubscriptionRegistry`'s
-    ///      persistent cache, the button stays correct even after fully closing and reopening
-    ///      the channel later.
+    /// Toggles the local (account-free) subscription to this channel, then rebuilds `details`
+    /// with the flipped `isSubscribed` so the button updates without a channel reload.
     func toggleSubscribe() async {
         guard let current = details else { return }
         let wasSubscribed = current.channel.isSubscribed
-        do {
-            if wasSubscribed {
-                try await subscriptions.unsubscribe(channelID: current.channel.id)
-            } else {
-                try await subscriptions.subscribe(channelID: current.channel.id)
-            }
-            // Optimistic flip — rebuild `details` with the new state on the channel.
-            let c = current.channel
-            let updatedChannel = Channel(
-                id: c.id,
-                name: c.name,
-                handle: c.handle,
-                thumbnailURL: c.thumbnailURL,
-                bannerURL: c.bannerURL,
-                subscriberCount: c.subscriberCount,
-                videoCount: c.videoCount,
-                isSubscribed: !wasSubscribed,
-                descriptionText: c.descriptionText
-            )
-            details = ChannelDetails(
-                channel: updatedChannel,
-                videos: current.videos,
-                shorts: current.shorts,
-                directs: current.directs,
-                playlists: current.playlists
-            )
-        } catch {
-            errorState = ErrorState(from: error)
+        if wasSubscribed {
+            await subscriptions.unsubscribe(channelID: current.channel.id)
+        } else {
+            await subscriptions.subscribe(to: current.channel)
         }
+        let c = current.channel
+        let updatedChannel = Channel(
+            id: c.id,
+            name: c.name,
+            handle: c.handle,
+            thumbnailURL: c.thumbnailURL,
+            bannerURL: c.bannerURL,
+            subscriberCount: c.subscriberCount,
+            videoCount: c.videoCount,
+            isSubscribed: !wasSubscribed,
+            descriptionText: c.descriptionText
+        )
+        details = ChannelDetails(
+            channel: updatedChannel,
+            videos: current.videos,
+            shorts: current.shorts,
+            directs: current.directs,
+            playlists: current.playlists
+        )
     }
 
     /// True when YouTubeKit still has a continuation token for the underlying tab. The three

@@ -241,7 +241,7 @@ struct PlaylistScreen: View {
     /// (like the description) wrap underneath their own column without dragging the label down
     /// to the middle of the block.
     @ViewBuilder
-    private func statRow(label: String, value: String?) -> some View {
+    private func statRow(label: LocalizedStringKey, value: String?) -> some View {
         if let value, !value.isEmpty {
             HStack(alignment: .top, spacing: 8) {
                 Text(label)
@@ -258,10 +258,7 @@ struct PlaylistScreen: View {
     }
 
     private func formattedAbbreviated(_ value: Int) -> String {
-        if value >= 1_000_000_000 { return String(format: "%.1fB", Double(value) / 1_000_000_000) }
-        if value >= 1_000_000 { return String(format: "%.1fM", Double(value) / 1_000_000) }
-        if value >= 1_000 { return String(format: "%.1fK", Double(value) / 1_000) }
-        return "\(value)"
+        value.compactFormatted
     }
 
     // MARK: - Glass toolbar
@@ -300,7 +297,7 @@ struct PlaylistScreen: View {
 
     /// Capsule action button styled to match the "glass" look used on the full-screen player —
     /// `.ultraThinMaterial` backdrop, hairline white stroke, white icon + label.
-    private func glassPill(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+    private func glassPill(title: LocalizedStringKey, systemImage: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Image(systemName: systemImage)

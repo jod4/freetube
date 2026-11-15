@@ -118,10 +118,10 @@ final class URLDownloadManager {
                 self.scheduleSnapshotRemoval(originalURL: originalURL)
                 self.log.info("[fetch] DONE key=\(key, privacy: .public) → \(url.lastPathComponent, privacy: .public)")
             } catch is CancellationError {
-                settled?.state = .failed("Cancelled")
+                settled?.state = .failed(String(localized: "Cancelled"))
                 if let job = settled { self.jobs[key] = job }
                 self.taskHandles[key] = nil
-                self.publishExternalSnapshot(originalURL: originalURL, title: media.title, state: .failed("Cancelled"))
+                self.publishExternalSnapshot(originalURL: originalURL, title: media.title, state: .failed(String(localized: "Cancelled")))
                 self.scheduleSnapshotRemoval(originalURL: originalURL)
                 self.log.info("[fetch] CANCELLED key=\(key, privacy: .public)")
             } catch {
@@ -191,7 +191,7 @@ final class URLDownloadManager {
         log.info("[fetch] cancel requested for url=\(url, privacy: .public)")
         task.cancel()
         // Don't remove the job entry — the observer Task will land in the `is CancellationError`
-        // branch above and write a terminal `.failed("Cancelled")` state, which the UI uses
+        // branch above and write a terminal `.failed("Cancelled")` (localized) state, which the UI uses
         // to show the "Redownload" button.
     }
 
@@ -201,7 +201,7 @@ final class URLDownloadManager {
         case (let v?, let a?) where v.id != a.id: return "\(v.label) + \(a.label)"
         case (let v?, _): return v.label
         case (_, let a?): return a.label
-        case (nil, nil): return "(nothing selected)"
+        case (nil, nil): return String(localized: "(nothing selected)")
         }
     }
 
@@ -373,10 +373,10 @@ final class URLDownloadManager {
 
         log.info("[fetch] adaptive start key=\(key, privacy: .public) video=\(video.id, privacy: .public) audio=\(audio.id, privacy: .public) v2h264=\(conversion.videoToH264, privacy: .public) a2mp3=\(conversion.audioToMP3, privacy: .public)")
 
-        try await downloadAny(format: video, url: vURL, destination: videoTmp, key: key, phaseLabel: "Video")
-        try await downloadAny(format: audio, url: aURL, destination: audioTmp, key: key, phaseLabel: "Audio")
+        try await downloadAny(format: video, url: vURL, destination: videoTmp, key: key, phaseLabel: String(localized: "Video"))
+        try await downloadAny(format: audio, url: aURL, destination: audioTmp, key: key, phaseLabel: String(localized: "Audio"))
 
-        try await updateState(key: key, .processing(conversion.requiresReencode(audioOnly: false, format: video) ? "Converting + combining…" : "Combining video + audio…"))
+        try await updateState(key: key, .processing(conversion.requiresReencode(audioOnly: false, format: video) ? String(localized: "Converting + combining…") : String(localized: "Combining video + audio…")))
         var args: [String] = [
             "ffmpeg",
             "-y",
@@ -404,7 +404,7 @@ final class URLDownloadManager {
     /// Post-download transcode pass for the single-source HTTPS path. Reads a local temp
     /// file and writes the final destination with the requested codec/container.
     private nonisolated func runTranscode(input: URL, destination: URL, conversion: ConversionOptions, audioOnly: Bool, key: String) async throws {
-        try await updateState(key: key, .processing("Converting…"))
+        try await updateState(key: key, .processing(String(localized: "Converting…")))
         var args: [String] = [
             "ffmpeg",
             "-y",
@@ -506,7 +506,7 @@ final class URLDownloadManager {
     /// Progress is indeterminate — FFmpegSupport doesn't surface stderr — so the UI
     /// shows "Stream · streaming…" with no percentage.
     private nonisolated func downloadViaFfmpeg(url: URL, destination: URL, conversion: ConversionOptions, key: String, audioOnly: Bool, phaseLabel: String? = nil) async throws {
-        try await updateState(key: key, .downloading(progress: nil, phase: phaseLabel ?? (audioOnly ? "Audio stream" : "Stream")))
+        try await updateState(key: key, .downloading(progress: nil, phase: phaseLabel ?? (audioOnly ? String(localized: "Audio stream") : String(localized: "Stream"))))
 
         var args: [String] = [
             "ffmpeg",
@@ -702,12 +702,12 @@ enum FetchError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .noAudioFormat: return "No audio track found in this URL."
-        case .missingURL: return "yt-dlp didn't return a usable URL for the selected format."
-        case .unsupportedProtocol(let proto): return "Streaming protocol '\(proto)' isn't supported yet."
-        case .httpStatus(let code): return "Server returned HTTP \(code)."
-        case .cannotWrite(let path): return "Couldn't write to \(path)."
-        case .muxFailed(let exit): return "ffmpeg failed (exit \(exit)). The stream may be DRM-protected."
+        case .noAudioFormat: return String(localized: "No audio track found in this URL.")
+        case .missingURL: return String(localized: "yt-dlp didn't return a usable URL for the selected format.")
+        case .unsupportedProtocol(let proto): return String(localized: "Streaming protocol '\(proto)' isn't supported yet.")
+        case .httpStatus(let code): return String(localized: "Server returned HTTP \(code).")
+        case .cannotWrite(let path): return String(localized: "Couldn't write to \(path).")
+        case .muxFailed(let exit): return String(localized: "ffmpeg failed (exit \(exit)). The stream may be DRM-protected.")
         }
     }
 }

@@ -71,29 +71,14 @@ extension Video {
         return String(format: "%d:%02d", minutes, seconds)
     }
 
-    /// Compact human-readable view-count string (e.g. "1.2M views", "856 views"). Empty when the
-    /// API didn't return a count, so callers can hide the label entirely.
+    /// Localized view-count line ("1.2M views", "1,2 Mio. Aufrufe", "856 views"). Empty when
+    /// the API didn't return a count, so callers can hide the label entirely. Counts below 1000
+    /// go through the `%lld views` key so plural rules apply ("1 view").
     var viewCountString: String {
         guard let viewCount, viewCount > 0 else { return "" }
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        if viewCount >= 1_000_000_000 {
-            return "\(trim(Double(viewCount) / 1_000_000_000))B views"
+        if viewCount < 1_000 {
+            return String(localized: "\(viewCount) views")
         }
-        if viewCount >= 1_000_000 {
-            return "\(trim(Double(viewCount) / 1_000_000))M views"
-        }
-        if viewCount >= 1_000 {
-            return "\(trim(Double(viewCount) / 1_000))K views"
-        }
-        return "\(viewCount) views"
-    }
-
-    private func trim(_ value: Double) -> String {
-        // Drop the decimal when whole, otherwise show one digit ("1.2", "12").
-        if value >= 100 || value.truncatingRemainder(dividingBy: 1) == 0 {
-            return String(format: "%.0f", value)
-        }
-        return String(format: "%.1f", value)
+        return String(localized: "\(viewCount.compactFormatted) views")
     }
 }

@@ -29,6 +29,11 @@ struct UserPreferences {
     /// queue) can flip this off in Settings.
     @AppStorage("prefetchNextInQueue") var prefetchNextInQueue: Bool = true
     @AppStorage("restrictedSearchMode") var restrictedSearchMode: Bool = false
+    /// `UserDefaults` key for the "Show Trending tab" switch. Views bind to it directly with
+    /// `@AppStorage(UserPreferences.showTrendingTabKey)` so the tab bar re-renders the moment
+    /// the switch flips. Default `false`: the feed is opt-in (kid-friendlier out of the box).
+    static let showTrendingTabKey = "showTrendingTab"
+    @AppStorage(UserPreferences.showTrendingTabKey) var showTrendingTab: Bool = false
     @AppStorage("appearanceMode") var appearanceModeRaw: String = AppearanceMode.system.rawValue
     @AppStorage("downloadCacheLimit") var downloadCacheLimitRaw: String = DownloadCacheLimit.unlimited.rawValue
     /// `--concurrent-fragments` value passed to yt-dlp. Higher values fetch more DASH/HLS chunks

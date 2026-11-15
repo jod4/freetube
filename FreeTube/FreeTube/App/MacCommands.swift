@@ -11,8 +11,9 @@ import SwiftUI
 /// 1. **Settings (⌘,)** — `CommandGroup(replacing: .appSettings)` is the standard slot;
 ///    we post a notification that `RootView` reads to switch its `TabView` selection to
 ///    the Settings tab. (No separate Settings scene — Settings is one of the five tabs.)
-/// 2. **Navigate menu (⌘1 / ⌘F / ⌘2 / ⌘3)** — quick-jump to tab bar entries. ⌘F is the
-///    standard "find" shortcut everywhere on Mac, so it maps to Search.
+/// 2. **Navigate menu (⌘1 / ⌘F / ⌘2 … ⌘5)** — quick-jump to tab bar entries. ⌘F is the
+///    standard "find" shortcut everywhere on Mac, so it maps to Search. Trending is
+///    disabled while that tab is hidden in Settings.
 /// 3. **Playback menu (Space, ⌘←/→, ⌘↑/↓)** — transport controls mirroring what
 ///    `RemoteCommandCenter` wires for the lock screen on iOS.
 ///
@@ -28,6 +29,7 @@ struct MacCommands: Commands {
     /// Can't use `@Environment` inside a `Commands` struct (it's not a `View`), so the
     /// player has to be threaded through from `FreeTubeApp`.
     let player: PlayerStateManager
+    @AppStorage(UserPreferences.showTrendingTabKey) private var showTrendingTab = false
 
     var body: some Commands {
         // 1. Replace the standard "App Settings" item (⌘,) with one that selects our
@@ -39,20 +41,22 @@ struct MacCommands: Commands {
             .keyboardShortcut(",", modifiers: .command)
         }
 
-        // 2. Navigate menu — quick-jump to tabs. Search lives inside Home now (folded in
-        // from the former dedicated Search tab), so ⌘F also lands on Home — the host's
-        // `.searchable` field is in the navigation bar and focus-able on macOS.
+        // 2. Navigate menu — quick-jump to tabs. ⌘F also lands on Search, whose field
+        // sits under the title and is focus-able on macOS.
         CommandMenu("Navigate") {
             Button("Search") { postTab(.search) }
                 .keyboardShortcut("1", modifiers: .command)
             Button("Find…") { postTab(.search) }
                 .keyboardShortcut("f", modifiers: .command)
-            Button("Library") { postTab(.library) }
+            Button("Trending") { postTab(.trending) }
                 .keyboardShortcut("2", modifiers: .command)
-            Button("Link") { postTab(.link) }
+                .disabled(!showTrendingTab)
+            Button("Library") { postTab(.library) }
                 .keyboardShortcut("3", modifiers: .command)
-            Button("Downloads") { postTab(.downloads) }
+            Button("Link") { postTab(.link) }
                 .keyboardShortcut("4", modifiers: .command)
+            Button("Downloads") { postTab(.downloads) }
+                .keyboardShortcut("5", modifiers: .command)
         }
 
         // 3. Playback menu — same controls as the lock-screen remote on iOS. Disabled

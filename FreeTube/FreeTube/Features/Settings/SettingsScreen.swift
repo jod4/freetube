@@ -5,6 +5,10 @@ struct SettingsScreen: View {
     @State private var model = SettingsViewModel()
     @State private var showingResetConfirmation = false
 
+    /// Bound directly (not via the view model) so `RootView`, which reads the same key,
+    /// adds/removes the tab as soon as the switch flips.
+    @AppStorage(UserPreferences.showTrendingTabKey) private var showTrendingTab = false
+
     /// Drives the live cache-usage line under the download cache limit picker. The store is
     /// `@Observable`, so reading `entries` here re-renders the view when downloads land or
     /// the cache eviction sweep deletes files.
@@ -50,6 +54,14 @@ struct SettingsScreen: View {
 
                 Section("Search") {
                     Toggle("Restricted search mode", isOn: Bindable(model).restrictedSearchMode)
+                }
+
+                Section {
+                    Toggle("Show Trending tab", isOn: $showTrendingTab)
+                } header: {
+                    Text("Tabs")
+                } footer: {
+                    Text("The Trending tab shows YouTube's video feed. When it's off, videos only appear through search, your library, and downloads.")
                 }
 
                 Section {

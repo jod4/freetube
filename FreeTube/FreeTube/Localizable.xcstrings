@@ -1653,6 +1653,40 @@
         }
       }
     },
+    "Show Trending tab" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trends-Tab anzeigen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Trending tab"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar pestaña Tendencias"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher l’onglet Tendances"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показывать вкладку «В тренде»"
+          }
+        }
+      }
+    },
     "Stream" : {
       "localizations" : {
         "de" : {
@@ -1755,6 +1789,40 @@
         }
       }
     },
+    "Tabs" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabs"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabs"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pestañas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Onglets"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вкладки"
+          }
+        }
+      }
+    },
     "Tap Subscribe on any channel page. Subscriptions are stored on this device only — no account needed." : {
       "localizations" : {
         "de" : {
@@ -1819,6 +1887,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Это не похоже на ссылку."
+          }
+        }
+      }
+    },
+    "The Trending tab shows YouTube's video feed. When it's off, videos only appear through search, your library, and downloads." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Trends-Tab zeigt den Video-Feed von YouTube. Ist er aus, erscheinen Videos nur über die Suche, die Mediathek und die Downloads."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Trending tab shows YouTube's video feed. When it's off, videos only appear through search, your library, and downloads."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La pestaña Tendencias muestra el feed de vídeos de YouTube. Si está desactivada, los vídeos solo aparecen a través de la búsqueda, tu biblioteca y las descargas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’onglet Tendances affiche le flux de vidéos de YouTube. Lorsqu’il est désactivé, les vidéos n’apparaissent que via la recherche, ta bibliothèque et les téléchargements."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вкладка «В тренде» показывает ленту видео YouTube. Если она выключена, видео доступны только через поиск, библиотеку и загрузки."
           }
         }
       }
@@ -1993,6 +2095,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Это видео недоступно."
+          }
+        }
+      }
+    },
+    "Trending" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trends"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trending"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tendencias"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tendances"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В тренде"
           }
         }
       }

@@ -6,8 +6,9 @@ import UIKit
 
 /// Top-level tabbed shell. CLAUDE.md §8: mini-player sits above the tab bar and persists across tabs.
 ///
-/// Tab layout (5):
-/// - Search (search field, recent searches, and the home video feed in one screen)
+/// Tab layout (5, or 6 with Trending):
+/// - Search (full-width search field, recent searches, results)
+/// - Trending (the YouTube video feed; hidden unless enabled in Settings → Tabs)
 /// - Library (subsumes the former Account + Subscriptions tabs; includes Favorites/Recents/Playlists/Login)
 /// - Link (yt-dlp-powered universal downloader; pastes any link from ~2,000 supported sites)
 /// - Downloads (saved videos + live transfer queue with progress)
@@ -23,9 +24,11 @@ struct RootView: View {
     /// Cached thumbnail for the current video so the mini-player bar shows the actual preview instead
     /// of a placeholder icon. Loaded via Kingfisher's cache when `currentVideo` changes.
     @State private var thumbnail: UIImage?
+    /// Settings → Tabs → "Show Trending tab". Off by default.
+    @AppStorage(UserPreferences.showTrendingTabKey) private var showTrendingTab = false
 
     enum Tab: Hashable {
-        case search, library, link, downloads, settings
+        case search, trending, library, link, downloads, settings
     }
 
     private var activeDownloadsCount: Int {
@@ -41,9 +44,15 @@ struct RootView: View {
         @Bindable var player = player
 
         TabView(selection: $selectedTab) {
-            HomeScreen()
+            SearchScreen()
                 .tabItem { Label("Search", systemImage: "magnifyingglass") }
                 .tag(Tab.search)
+
+            if showTrendingTab {
+                TrendingScreen()
+                    .tabItem { Label("Trending", systemImage: "flame") }
+                    .tag(Tab.trending)
+            }
 
             LibraryScreen()
                 .tabItem { Label("Library", systemImage: "play.square.stack") }
@@ -109,8 +118,15 @@ struct RootView: View {
         // notification is meaningful only on Mac (where the menu bar exists) and on iPad
         // with a hardware keyboard; everywhere else nobody posts it and this is a no-op.
         .onReceive(NotificationCenter.default.publisher(for: .freetubeSelectTab)) { note in
-            if let tab = note.object as? Tab {
+            if let tab = note.object as? Tab, tab != .trending || showTrendingTab {
                 selectedTab = tab
+            }
+        }
+        // Hiding the Trending tab while it's selected would leave the TabView pointing at a
+        // tag that no longer exists — fall back to Search.
+        .onChange(of: showTrendingTab) { _, isShown in
+            if !isShown && selectedTab == .trending {
+                selectedTab = .search
             }
         }
     }

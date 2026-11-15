@@ -1,15 +1,84 @@
 import SwiftUI
 import SwiftData
 
+/// **Search** tab. Title "Search", a full-width search field directly below it, and the
+/// results below that. While nothing has been searched yet, `SearchContent` shows the
+/// recent queries (or a short hint when there are none). The video feed that used to sit
+/// here lives in the separate Trending tab (`TrendingScreen`).
+///
+/// **Search field placement:** `.navigationBarDrawer(displayMode: .always)` pins the field
+/// under the large title at full width. The default placement puts it as a small field in
+/// the trailing corner of the navigation bar on iPadOS 18+, next to the top tab bar.
+///
+/// **Mac runtime** gets a custom inline field via `MacInlineSearchField`, because
+/// `.searchable` collapses to a trailing toolbar button on Designed-for-iPad-on-Mac and
+/// real Catalyst, which is awkward at desktop widths.
+@available(iOS 17.0, *)
+struct SearchScreen: View {
+    @State private var searchModel = SearchViewModel()
+    @Environment(\.modelContext) private var modelContext
+
+    /// Recent search queries. Read here so `runSearch` can upsert by query string.
+    @Query(sort: \SearchHistoryEntry.searchedAt, order: .reverse) private var history: [SearchHistoryEntry]
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                if MacIntegration.isRunningOnMac {
+                    MacInlineSearchField(query: $searchModel.query) {
+                        Task { await runSearch() }
+                    }
+                }
+
+                SearchContent(model: searchModel) {
+                    Task { await runSearch() }
+                }
+            }
+            .navigationTitle("Search")
+            .modifier(ConditionalSearchable(
+                text: $searchModel.query,
+                enabled: !MacIntegration.isRunningOnMac,
+                prompt: "Search YouTube"
+            ))
+            .onSubmit(of: .search) {
+                Task { await runSearch() }
+            }
+            // When the user clears the field, drop the previous results + suggestions so the
+            // recent-searches list re-renders cleanly.
+            .onChange(of: searchModel.query) { _, newValue in
+                if newValue.trimmingCharacters(in: .whitespaces).isEmpty {
+                    searchModel.clearResults()
+                }
+            }
+            .refreshable {
+                if searchModel.results != nil {
+                    await searchModel.submit()
+                }
+            }
+        }
+    }
+
+    /// Persists the trimmed query to history (upsert by query string), then fires
+    /// `searchModel.submit()`.
+    private func runSearch() async {
+        let trimmed = searchModel.query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if let existing = history.first(where: { $0.query == trimmed }) {
+            existing.searchedAt = .now
+        } else {
+            modelContext.insert(SearchHistoryEntry(query: trimmed))
+        }
+        try? modelContext.save()
+        await searchModel.submit()
+    }
+}
+
+// MARK: - Content
+
 /// Renders the body of the search experience — results / suggestions / history / empty
-/// state — without owning its own navigation stack or search bar. Hosted by `HomeScreen`,
+/// state — without owning its own navigation stack or search bar. Hosted by `SearchScreen`,
 /// which provides the `.searchable` text input and the `onRunSearch` callback so the
 /// history upsert + submit stay in one place at the host level.
-///
-/// **Why decoupled from the search field:** the host (Home) needs to decide what to show
-/// based on whether a search is active — when the user clears the field, we want the home
-/// feed back, not a stale "Search" screen. Owning the `.searchable` at the host level
-/// makes that flip simple.
 @available(iOS 17.0, *)
 struct SearchContent: View {
     @Bindable var model: SearchViewModel
@@ -137,6 +206,8 @@ struct SearchContent: View {
     }
 }
 
+// MARK: - Search field helpers
+
 /// Inline search field used on Mac (Designed-for-iPad-on-Mac or real Catalyst). `.searchable`
 /// collapses to a trailing toolbar button on Mac runtimes — awkward at desktop widths. The
 /// host view embeds this above its content and skips `.searchable` via `ConditionalSearchable`.
@@ -184,7 +255,11 @@ struct ConditionalSearchable: ViewModifier {
 
     func body(content: Content) -> some View {
         if enabled {
-            content.searchable(text: $text, prompt: Text(prompt))
+            content.searchable(
+                text: $text,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: Text(prompt)
+            )
         } else {
             content
         }

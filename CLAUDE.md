@@ -85,8 +85,10 @@ FreeTube/
 │                          # VideoFormat, VideoQuality, ErrorState,
 │                          # PlaybackSource, UserPreferences, YouTubeServiceError
 ├── Features/
-│   ├── Home/              # HomeScreen + HomeViewModel
-│   ├── Search/            # SearchScreen, SearchSuggestionList, SearchViewModel
+│   ├── Search/            # SearchScreen (search tab: field under title, recents,
+│   │                      # results), SearchSuggestionList, SearchViewModel
+│   ├── Trending/          # TrendingScreen + TrendingViewModel (HomeService feed;
+│   │                      # tab hidden unless Settings → Tabs → "Show Trending tab")
 │   ├── Subscriptions/     # SubscriptionsScreen + ViewModel
 │   ├── Library/           # LibraryScreen, HistoryScreen, SubscribedChannelsScreen, ViewModels
 │   ├── Channel/           # ChannelScreen, ChannelTabScreen, ViewModel
@@ -131,7 +133,7 @@ Every YouTubeKit response type gets exactly one service method. Do not call `You
 
 | Response | Service method |
 |---|---|
-| `HomeScreenResponse` (+Continuation) | `HomeService.fetchHome()` / `fetchMore()` |
+| `HomeScreenResponse` (+Continuation) | `HomeService.fetchHome()` / `fetchMore()` (shown in the Trending tab) |
 | `TrendingVideosResponse` | `HomeService.fetchTrending()` |
 | `SearchResponse` (+Continuation, +Restricted) | `SearchService.search(query:restricted:)` / `fetchMore()` |
 | `AutoCompletionResponse` | `SearchService.autocomplete(query:)` |

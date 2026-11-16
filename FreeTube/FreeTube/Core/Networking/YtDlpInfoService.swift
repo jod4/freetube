@@ -178,7 +178,8 @@ final class YtDlpInfoService: Sendable {
             abr: abrRaw > 0 ? abrRaw : nil,
             filesize: sizeInt > 0 ? sizeInt : nil,
             protocolKind: protocolKind,
-            rawProtocol: protocolStr
+            rawProtocol: protocolStr,
+            httpHeaders: fmt.checking["http_headers"].flatMap { [String: String]($0) } ?? [:]
         )
     }
 }

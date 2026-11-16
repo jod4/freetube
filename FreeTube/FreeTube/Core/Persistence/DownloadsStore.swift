@@ -176,6 +176,7 @@ final class DownloadsStore {
         Task.detached(priority: .utility) {
             let thumb = rawThumbnail.flatMap(Self.compressedThumbnail(_:))
             let duration = Self.readDuration(at: fileURL)
+            let videoHeight = Self.readVideoHeight(at: fileURL)
             let metadata = DownloadMetadata(
                 videoID: videoID,
                 title: title,
@@ -184,7 +185,8 @@ final class DownloadsStore {
                 downloadedAt: .now,
                 originalURL: originalURL,
                 thumbnailData: thumb,
-                duration: duration
+                duration: duration,
+                videoHeight: videoHeight
             )
             do {
                 let blob = try PropertyListEncoder().encode(metadata)
@@ -274,7 +276,8 @@ final class DownloadsStore {
             metadata: metadata,
             fileSize: size,
             modifiedAt: mtime,
-            duration: duration
+            duration: duration,
+            videoHeight: metadata?.videoHeight ?? readVideoHeight(at: url)
         )
     }
 
@@ -291,6 +294,17 @@ final class DownloadsStore {
         let asset = AVURLAsset(url: url)
         let seconds = asset.duration.seconds
         return (seconds.isFinite && seconds > 0) ? seconds : nil
+    }
+
+    /// Quality of the file's video track as a "p" number — the shorter side of the
+    /// display size, so a 1080×1920 Short reads 1080p like YouTube labels it. Header-only
+    /// read (same cost class as `readDuration`), scan task only. nil for audio-only files.
+    nonisolated static func readVideoHeight(at url: URL) -> Int? {
+        let asset = AVURLAsset(url: url)
+        guard let track = asset.tracks(withMediaType: .video).first else { return nil }
+        let size = track.naturalSize.applying(track.preferredTransform)
+        let shorter = Int(min(abs(size.width), abs(size.height)).rounded())
+        return shorter > 0 ? shorter : nil
     }
 
     /// Downscale + JPEG-compress the source thumbnail so it fits comfortably in an xattr
@@ -321,6 +335,8 @@ struct DownloadEntry: Identifiable, Sendable {
     /// time SwiftUI renders a row, this is already a cached `TimeInterval` — no sync
     /// `AVURLAsset` calls during list body evaluation.
     let duration: TimeInterval?
+    /// Video quality ("720" for 720p), read from the file during the scan. nil for audio.
+    let videoHeight: Int?
 
     var id: String { fileURL.path }
 

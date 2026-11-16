@@ -60,7 +60,7 @@ struct DownloadsScreen: View {
     private var inProgress: [DownloadTaskSnapshot] {
         model.manager.activeTasks.filter { snapshot in
             switch snapshot.state {
-            case .queued, .downloading, .paused, .failed: return true
+            case .queued, .downloading, .processing, .paused, .failed: return true
             case .completed: return false
             }
         }
@@ -191,7 +191,7 @@ struct DownloadsScreen: View {
                 Text(snapshot.title)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(2)
-                progress(for: snapshot.state)
+                progress(for: snapshot)
             }
             Spacer()
             Button(role: .destructive) {
@@ -205,14 +205,23 @@ struct DownloadsScreen: View {
     }
 
     @ViewBuilder
-    private func progress(for state: DownloadTaskSnapshot.State) -> some View {
-        switch state {
+    private func progress(for snapshot: DownloadTaskSnapshot) -> some View {
+        switch snapshot.state {
         case .queued:
             Text("Queued").font(.caption).foregroundStyle(.secondary)
         case .downloading(let value):
             VStack(alignment: .leading, spacing: 2) {
                 ProgressView(value: value)
-                Text(verbatim: "\(Int(value * 100))%").font(.caption2).foregroundStyle(.secondary)
+                downloadingLabel(percent: Int(value * 100), phase: snapshot.phase)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        case .processing:
+            // ffmpeg's in-process mux reports no progress, so a spinner rather than a bar.
+            HStack(spacing: 6) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Processing…").font(.caption2).foregroundStyle(.secondary)
             }
         case .paused:
             Text("Paused").font(.caption).foregroundStyle(.secondary)
@@ -220,6 +229,17 @@ struct DownloadsScreen: View {
             Text("Completed").font(.caption).foregroundStyle(.green)
         case .failed(let message):
             Text(message).font(.caption).foregroundStyle(.red)
+        }
+    }
+
+    /// Video and audio download one after the other, each 0 → 100 % — naming the leg keeps
+    /// the second run from looking like a restart.
+    @ViewBuilder
+    private func downloadingLabel(percent: Int, phase: String?) -> some View {
+        switch phase {
+        case "video": Text("Downloading video \(percent)%")
+        case "audio": Text("Downloading audio \(percent)%")
+        default: Text(verbatim: "\(percent)%")
         }
     }
 
@@ -237,6 +257,11 @@ struct DownloadsScreen: View {
                     Text(item.channelName).font(.caption).foregroundStyle(.secondary)
                 }
                 HStack(spacing: 6) {
+                    if let height = item.videoHeight {
+                        Text(verbatim: "\(height)p")
+                            .fontWeight(.semibold)
+                        Text(verbatim: "•")
+                    }
                     Text(formatSize(item.fileSize))
                     if let dur = item.duration {
                         Text(verbatim: "• \(formatDuration(dur))")
@@ -604,6 +629,8 @@ struct SavedItem: Identifiable {
     /// Read from AVURLAsset on construction. Sync (deprecated API but fine) so we can use it as a
     /// sort key without async plumbing.
     let duration: TimeInterval?
+    /// Video quality ("720" for 720p) from the scan; nil for audio-only files.
+    let videoHeight: Int?
     /// `nil` for YouTube downloads (videoID alone reconstructs the canonical YouTube URL).
     /// Set to the original pasted URL for files downloaded via the "From URL" tab — drives
     /// the branch between `loadLocalFile` (URL items) and the YouTube resolver, and the
@@ -623,6 +650,7 @@ struct SavedItem: Identifiable {
         // large library this was the dominant source of scroll lag (the row builder ran
         // per body re-evaluation, and `.duration.seconds` is a blocking moov-atom read).
         self.duration = entry.duration
+        self.videoHeight = entry.videoHeight
         if let m = entry.metadata {
             self.id = m.videoID
             self.videoID = m.videoID

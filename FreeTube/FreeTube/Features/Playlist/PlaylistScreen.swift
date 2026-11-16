@@ -365,6 +365,7 @@ struct PlaylistScreen: View {
                 videos: videos,
                 columns: columns,
                 compactWhenSingleColumn: true,
+                showsMoreMenu: true,
                 onTap: { video in
                     // Make sure the queue reflects the playlist's order before kicking off
                     // playback, so "next video" actually means the next playlist entry.

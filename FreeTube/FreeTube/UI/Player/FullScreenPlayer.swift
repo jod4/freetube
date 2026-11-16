@@ -628,6 +628,23 @@ struct FullScreenPlayer: View {
                         Label("Add to playlist", systemImage: "text.badge.plus")
                     }
                 }
+                if DownloadManager.shared.localFile(for: video.id) == nil {
+                    Divider()
+                    // Playback streams without leaving a file, so offline copies are an explicit
+                    // choice. Runs in the background; progress shows in the Downloads tab.
+                    if DownloadManager.shared.isDownloading(videoID: video.id) {
+                        Button {} label: {
+                            Label("Downloading…", systemImage: "arrow.down.circle.dotted")
+                        }
+                        .disabled(true)
+                    } else {
+                        Button {
+                            DownloadManager.shared.startDownload(video)
+                        } label: {
+                            Label("Download video", systemImage: "arrow.down.circle")
+                        }
+                    }
+                }
                 if DownloadManager.shared.localFile(for: video.id) != nil {
                     Divider()
                     Button(role: .destructive) {

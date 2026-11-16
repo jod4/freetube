@@ -22,10 +22,54 @@ nonisolated final class YouTubeKitClient: @unchecked Sendable {
     /// them as the same anonymous session.
     let tvHtmlModel = YouTubeModel()
 
+    /// Alternate model identified as the `VISIONOS` client (yt-dlp's `visionos` profile).
+    /// Its `/player` response carries an `hlsManifestUrl` (H.264 up to 1080p, separate audio
+    /// renditions) whose segments play without a Proof-of-Origin token and without any n/sig
+    /// solving — so `AVPlayer` can stream it directly, no Python involved. Verified 2026-11-15:
+    /// ~0.4 s for the player request, all sampled segments HTTP 200. YouTube answers
+    /// `UNPLAYABLE` for "made for kids" videos on this client; the resolver falls back to
+    /// yt-dlp for those. Anonymous on purpose (no cookies), visitor token shared with `model`.
+    let visionOSModel = YouTubeModel()
+
     private let log = AppLog(subsystem: "com.leshko.freetube", category: "YouTubeKitClient")
 
     private init() {
         installTVHTML5Overrides()
+        installVisionOSOverrides()
+    }
+
+    /// Replaces the `.videoInfos` request of `visionOSModel` with a `VISIONOS` client payload.
+    /// Context values mirror yt-dlp 2026.10.21's `INNERTUBE_CLIENTS['visionos']`; bump them
+    /// together with the pinned yt-dlp if YouTube starts rejecting the client version.
+    private func installVisionOSOverrides() {
+        let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15"
+        let bodyPrefix = #"{"context":{"client":{"clientName":"VISIONOS","clientVersion":"1.02","deviceMake":"Apple","deviceModel":"RealityDevice17,1","userAgent":""# + userAgent + #"","osName":"visionOS","osVersion":"26.5.23O471","hl":"en","gl":"US"}},"contentCheckOk":true,"racyCheckOk":true,"videoId":""#
+        guard let playerURL = URL(string: "https://www.youtube.com/youtubei/v1/player") else { return }
+        let headers = HeadersList(
+            url: playerURL,
+            method: .POST,
+            headers: [
+                HeadersList.Header(name: "Accept", content: "*/*"),
+                HeadersList.Header(name: "Accept-Encoding", content: "gzip, deflate, br"),
+                HeadersList.Header(name: "Host", content: "www.youtube.com"),
+                HeadersList.Header(name: "User-Agent", content: userAgent),
+                HeadersList.Header(name: "Content-Type", content: "application/json"),
+                HeadersList.Header(name: "Origin", content: "https://www.youtube.com"),
+                HeadersList.Header(name: "X-YouTube-Client-Name", content: "101"),
+                HeadersList.Header(name: "X-YouTube-Client-Version", content: "1.02")
+            ],
+            customHeaders: [
+                "X-Goog-Visitor-Id": .visitorData
+            ],
+            addQueryAfterParts: [
+                HeadersList.AddQueryInfo(index: 0, encode: false, content: .query)
+            ],
+            httpBody: [bodyPrefix, "\"}"],
+            parameters: [
+                HeadersList.ParameterToAdd(name: "prettyPrint", content: "false")
+            ]
+        )
+        visionOSModel.customHeaders[.videoInfos] = headers
     }
 
     /// Replaces the `.videoInfos` request the default `YouTubeKitClient.tvHtmlModel` would otherwise
@@ -71,6 +115,7 @@ nonisolated final class YouTubeKitClient: @unchecked Sendable {
     func clearVisitorData() {
         model.visitorData = ""
         tvHtmlModel.visitorData = ""
+        visionOSModel.visitorData = ""
     }
 
     /// Pushes the latest cookie header string into `YouTubeModel`. Called by `SessionManager`.
@@ -103,6 +148,7 @@ nonisolated final class YouTubeKitClient: @unchecked Sendable {
             if let visitorData = response.visitorData, !visitorData.isEmpty {
                 model.visitorData = visitorData
                 tvHtmlModel.visitorData = visitorData
+                visionOSModel.visitorData = visitorData
                 log.info("Visitor data bootstrapped")
             } else {
                 log.error("SearchResponse returned no visitorData")

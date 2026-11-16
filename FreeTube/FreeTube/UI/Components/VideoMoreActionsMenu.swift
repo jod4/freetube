@@ -13,6 +13,7 @@ import OSLog
 ///   - Open in… : shown only when the video has a local downloaded file
 ///   - Add to favorites / Remove from favorites: shown only when signed in
 ///   - Add to playlist: shown only when signed in
+///   - Download video / Downloading…: shown only while there's no local file
 ///   - Remove downloaded file: shown only when the video has a local downloaded file
 @available(iOS 17.0, *)
 struct VideoMoreActionsMenu: View {
@@ -94,6 +95,23 @@ struct VideoMoreActionsMenu: View {
                 addToPlaylistVideo = video
             } label: {
                 Label("Add to playlist", systemImage: "text.badge.plus")
+            }
+        }
+        if DownloadManager.shared.localFile(for: video.id) == nil {
+            Divider()
+            // Playback streams without leaving a file, so offline copies are an explicit
+            // choice. Runs in the background; progress shows in the Downloads tab.
+            if DownloadManager.shared.isDownloading(videoID: video.id) {
+                Button {} label: {
+                    Label("Downloading…", systemImage: "arrow.down.circle.dotted")
+                }
+                .disabled(true)
+            } else {
+                Button {
+                    DownloadManager.shared.startDownload(video)
+                } label: {
+                    Label("Download video", systemImage: "arrow.down.circle")
+                }
             }
         }
         if DownloadManager.shared.localFile(for: video.id) != nil {

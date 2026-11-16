@@ -19,6 +19,9 @@ struct DownloadTaskSnapshot: Identifiable, Sendable {
     enum State: Sendable, Equatable {
         case queued
         case downloading(progress: Double)
+        /// Bytes are in; joining video + audio (ffmpeg) and writing metadata. Can take a while
+        /// for long videos on older devices — shown as an indeterminate bar, not a stuck 100 %.
+        case processing
         case paused
         case completed(URL)
         case failed(String)
@@ -29,4 +32,7 @@ struct DownloadTaskSnapshot: Identifiable, Sendable {
     let title: String
     let state: State
     let createdAt: Date
+    /// Which stream is transferring while `.downloading`: "video" / "audio" (yt-dlp downloads
+    /// the two legs one after the other, each 0 → 100 %), nil when unknown.
+    var phase: String? = nil
 }

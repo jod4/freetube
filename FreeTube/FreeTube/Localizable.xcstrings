@@ -1071,6 +1071,40 @@
         }
       }
     },
+    "Currently using %@. When the cache exceeds the limit, the oldest downloads are removed to fit.\n\nParallel fragments controls how many HLS/DASH chunks yt-dlp fetches at once inside a single download — higher values are faster on good connections; values above 8 can trigger YouTube rate-limiting." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktuelle Nutzung: %@. Wenn der Cache das Limit überschreitet, werden die ältesten Downloads entfernt.\n\n„Parallele Fragmente“ legt fest, wie viele HLS/DASH-Stücke yt-dlp in einem Download gleichzeitig abruft — höhere Werte sind bei guter Verbindung schneller; Werte über 8 können YouTube-Drosselung auslösen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Currently using %@. When the cache exceeds the limit, the oldest downloads are removed to fit.\n\nParallel fragments controls how many HLS/DASH chunks yt-dlp fetches at once inside a single download — higher values are faster on good connections; values above 8 can trigger YouTube rate-limiting."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uso actual: %@. Cuando la caché supera el límite, se eliminan las descargas más antiguas para que quepan.\n\nFragmentos paralelos controla cuántos trozos HLS/DASH descarga yt-dlp a la vez dentro de una sola descarga — valores más altos son más rápidos con buena conexión; valores por encima de 8 pueden activar el límite de tasa de YouTube."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisation actuelle : %@. Lorsque le cache dépasse la limite, les téléchargements les plus anciens sont supprimés.\n\nFragments parallèles contrôle le nombre de morceaux HLS/DASH que yt-dlp récupère à la fois dans un même téléchargement — des valeurs élevées sont plus rapides sur de bonnes connexions ; au-delà de 8, YouTube peut limiter le débit."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сейчас используется: %@. Когда кэш превышает лимит, самые старые загрузки удаляются.\n\nПараллельные фрагменты определяют, сколько чанков HLS/DASH yt-dlp скачивает одновременно в рамках одной загрузки — более высокие значения быстрее при хорошем соединении; значения выше 8 могут вызвать ограничение со стороны YouTube."
+          }
+        }
+      }
+    },
     "Delete %lld videos?" : {
       "localizations" : {
         "de" : {
@@ -1245,6 +1279,40 @@
         }
       }
     },
+    "Download video" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video herunterladen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download video"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descargar vídeo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Télécharger la vidéo"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скачать видео"
+          }
+        }
+      }
+    },
     "Downloading audio %lld%%" : {
       "localizations" : {
         "de" : {
@@ -1309,6 +1377,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Загрузка видео %lld%%"
+          }
+        }
+      }
+    },
+    "Downloading…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird heruntergeladen…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descargando…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Téléchargement…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загрузка…"
           }
         }
       }
@@ -1581,6 +1683,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ещё не загружено"
+          }
+        }
+      }
+    },
+    "Save videos while playing" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videos beim Abspielen speichern"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save videos while playing"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar vídeos al reproducirlos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer les vidéos pendant la lecture"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранять видео при просмотре"
           }
         }
       }
@@ -2265,6 +2401,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Видео"
+          }
+        }
+      }
+    },
+    "Videos are streamed, so they start within seconds. Lower qualities start faster and use less data.\n\nPrefetch prepares the next video in the queue while the current one plays, so tapping Next is instant.\n\nWith \"Save videos while playing\", every video you watch is also downloaded in the background for offline viewing. These files count towards the cache limit." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videos werden gestreamt und starten deshalb innerhalb weniger Sekunden. Niedrigere Qualitäten starten schneller und verbrauchen weniger Daten.\n\n„Vorab laden“ bereitet das nächste Video der Warteschlange vor, während das aktuelle läuft – so startet „Weiter“ sofort.\n\nMit „Videos beim Abspielen speichern“ wird jedes angesehene Video zusätzlich im Hintergrund heruntergeladen und ist offline verfügbar. Diese Dateien zählen zum Cache-Limit."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videos are streamed, so they start within seconds. Lower qualities start faster and use less data.\n\nPrefetch prepares the next video in the queue while the current one plays, so tapping Next is instant.\n\nWith \"Save videos while playing\", every video you watch is also downloaded in the background for offline viewing. These files count towards the cache limit."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los vídeos se reproducen en streaming, así que empiezan en pocos segundos. Las calidades más bajas empiezan antes y consumen menos datos.\n\nLa precarga prepara el siguiente vídeo de la cola mientras se reproduce el actual, para que tocar Siguiente sea instantáneo.\n\nCon «Guardar vídeos al reproducirlos», cada vídeo que ves también se descarga en segundo plano para verlo sin conexión. Estos archivos cuentan para el límite de caché."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les vidéos sont diffusées en streaming et démarrent donc en quelques secondes. Les qualités inférieures démarrent plus vite et consomment moins de données.\n\nLe préchargement prépare la vidéo suivante de la file pendant la lecture de la vidéo en cours, pour que toucher Suivant soit instantané.\n\nAvec « Enregistrer les vidéos pendant la lecture », chaque vidéo regardée est aussi téléchargée en arrière-plan pour être visionnée hors ligne. Ces fichiers comptent dans la limite du cache."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Видео воспроизводятся потоково, поэтому запускаются за несколько секунд. Более низкое качество запускается быстрее и расходует меньше трафика.\n\nПредзагрузка подготавливает следующее видео в очереди, пока воспроизводится текущее, чтобы нажатие «Далее» срабатывало мгновенно.\n\nС параметром «Сохранять видео при просмотре» каждое просмотренное видео также скачивается в фоне для офлайн-просмотра. Эти файлы учитываются в лимите кэша."
           }
         }
       }
@@ -3837,40 +4007,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Текущий лог"
-          }
-        }
-      }
-    },
-    "Currently using %@. When the cache exceeds the limit, the oldest downloads are removed to fit.\n\nPrefetch starts a background download of the next queued video as soon as the current one plays, so tapping Next is instant. Turn off to save bandwidth.\n\nParallel fragments controls how many HLS/DASH chunks yt-dlp fetches at once inside a single download — higher values are faster on good connections; values above 8 can trigger YouTube rate-limiting." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aktuelle Nutzung: %@. Wenn der Cache das Limit überschreitet, werden die ältesten Downloads entfernt.\n\n„Vorab laden“ startet im Hintergrund den Download des nächsten Videos in der Warteschlange, sobald das aktuelle abgespielt wird — so erfolgt „Weiter“ sofort. Zum Sparen von Datenvolumen ausschalten.\n\n„Parallele Fragmente“ legt fest, wie viele HLS/DASH-Stücke yt-dlp in einem Download gleichzeitig abruft — höhere Werte sind bei guter Verbindung schneller; Werte über 8 können YouTube-Drosselung auslösen."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Currently using %@. When the cache exceeds the limit, the oldest downloads are removed to fit.\n\nPrefetch starts a background download of the next queued video as soon as the current one plays, so tapping Next is instant. Turn off to save bandwidth.\n\nParallel fragments controls how many HLS/DASH chunks yt-dlp fetches at once inside a single download — higher values are faster on good connections; values above 8 can trigger YouTube rate-limiting."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uso actual: %@. Cuando la caché supera el límite, se eliminan las descargas más antiguas para que quepan.\n\nLa precarga inicia una descarga en segundo plano del siguiente vídeo en cola en cuanto empieza a reproducirse el actual, para que tocar Siguiente sea instantáneo. Desactívala para ahorrar datos.\n\nFragmentos paralelos controla cuántos trozos HLS/DASH descarga yt-dlp a la vez dentro de una sola descarga — valores más altos son más rápidos con buena conexión; valores por encima de 8 pueden activar el límite de tasa de YouTube."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Utilisation actuelle : %@. Lorsque le cache dépasse la limite, les téléchargements les plus anciens sont supprimés.\n\nLe préchargement lance en arrière-plan le téléchargement de la prochaine vidéo de la file dès que la vidéo en cours démarre, pour que toucher Suivant soit instantané. Désactivez-le pour économiser de la bande passante.\n\nFragments parallèles contrôle le nombre de morceaux HLS/DASH que yt-dlp récupère à la fois dans un même téléchargement — des valeurs élevées sont plus rapides sur de bonnes connexions ; au-delà de 8, YouTube peut limiter le débit."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сейчас используется: %@. Когда кэш превышает лимит, самые старые загрузки удаляются.\n\nПредзагрузка начинает фоновую загрузку следующего видео в очереди сразу после начала воспроизведения текущего, чтобы нажатие «Далее» срабатывало мгновенно. Отключите для экономии трафика.\n\nПараллельные фрагменты определяют, сколько чанков HLS/DASH yt-dlp скачивает одновременно в рамках одной загрузки — более высокие значения быстрее при хорошем соединении; значения выше 8 могут вызвать ограничение со стороны YouTube."
           }
         }
       }
@@ -8733,40 +8869,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Видео"
-          }
-        }
-      }
-    },
-    "Videos download to your device before playback. Lower qualities save space and download faster." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Videos werden vor der Wiedergabe auf dein Gerät geladen. Niedrigere Qualitäten sparen Speicherplatz und laden schneller."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Videos download to your device before playback. Lower qualities save space and download faster."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Los vídeos se descargan al dispositivo antes de reproducirse. Las calidades más bajas ahorran espacio y descargan más rápido."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les vidéos se téléchargent sur votre appareil avant la lecture. Les qualités inférieures économisent de l’espace et se téléchargent plus rapidement."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Видео загружаются на устройство перед воспроизведением. Более низкое качество экономит место и загружается быстрее."
           }
         }
       }

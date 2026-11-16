@@ -46,10 +46,12 @@ struct SettingsScreen: View {
                         }
                     }
                     Toggle("Autoplay next video", isOn: Bindable(model).autoplayNext)
+                    Toggle("Prefetch next video", isOn: Bindable(model).prefetchNextInQueue)
+                    Toggle("Save videos while playing", isOn: Bindable(model).saveWhilePlaying)
                 } header: {
                     Text("Playback")
                 } footer: {
-                    Text("Videos download to your device before playback. Lower qualities save space and download faster.")
+                    Text("Videos are streamed, so they start within seconds. Lower qualities start faster and use less data.\n\nPrefetch prepares the next video in the queue while the current one plays, so tapping Next is instant.\n\nWith \"Save videos while playing\", every video you watch is also downloaded in the background for offline viewing. These files count towards the cache limit.")
                 }
 
                 Section("Search") {
@@ -66,7 +68,6 @@ struct SettingsScreen: View {
 
                 Section {
                     Toggle("Allow cellular data", isOn: Bindable(model).allowCellularDownloads)
-                    Toggle("Prefetch next video", isOn: Bindable(model).prefetchNextInQueue)
                     Picker("Cache limit", selection: Bindable(model).downloadCacheLimit) {
                         ForEach(DownloadCacheLimit.allCases) { option in
                             Text(option.displayName).tag(option)
@@ -80,7 +81,7 @@ struct SettingsScreen: View {
                 } header: {
                     Text("Downloads")
                 } footer: {
-                    Text("Currently using \(formattedCacheUsage). When the cache exceeds the limit, the oldest downloads are removed to fit.\n\nPrefetch starts a background download of the next queued video as soon as the current one plays, so tapping Next is instant. Turn off to save bandwidth.\n\nParallel fragments controls how many HLS/DASH chunks yt-dlp fetches at once inside a single download — higher values are faster on good connections; values above 8 can trigger YouTube rate-limiting.")
+                    Text("Currently using \(formattedCacheUsage). When the cache exceeds the limit, the oldest downloads are removed to fit.\n\nParallel fragments controls how many HLS/DASH chunks yt-dlp fetches at once inside a single download — higher values are faster on good connections; values above 8 can trigger YouTube rate-limiting.")
                 }
 
                 Section {

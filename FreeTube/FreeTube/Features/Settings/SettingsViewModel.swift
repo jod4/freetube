@@ -22,9 +22,9 @@ final class SettingsViewModel {
         set { preferences.allowCellularDownloads = newValue }
     }
 
-    var alwaysDownloadBeforePlayback: Bool {
-        get { preferences.alwaysDownloadBeforePlayback }
-        set { preferences.alwaysDownloadBeforePlayback = newValue }
+    var saveWhilePlaying: Bool {
+        get { preferences.saveWhilePlaying }
+        set { preferences.saveWhilePlaying = newValue }
     }
 
     var autoplayNext: Bool {

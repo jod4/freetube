@@ -139,7 +139,7 @@ Every YouTubeKit response type gets exactly one service method. Do not call `You
 | `AutoCompletionResponse` | `SearchService.autocomplete(query:)` |
 | `ChannelInfosResponse` (+Videos/Shorts/Directs/Playlists +Continuations) | `ChannelService.fetchChannel(id:)` / `fetchVideos()` / `fetchShorts()` / `fetchDirects()` / `fetchPlaylists()` |
 | `PlaylistInfosResponse` (+Continuation) | `PlaylistService.fetchPlaylist(id:)` / `fetchMore()` |
-| `VideoInfosResponse` | `VideoService.fetchInfo(id:)` (iOS client) — **also `VideoService.fetchInfoViaTVHTML5(id:)`** (TVHTML5_SIMPLY_EMBEDDED_PLAYER context for PoT-resistant URLs) |
+| `VideoInfosResponse` | `VideoService.fetchInfo(id:)` (iOS client) — **also `VideoService.fetchInfoViaVisionOS(id:)`** (VISIONOS context; token-free HLS, the streaming fast path, §7) and `VideoService.fetchInfoViaTVHTML5(id:)` (TVHTML5_SIMPLY_EMBEDDED_PLAYER, dead since 2026-11) |
 | `VideoInfosWithDownloadFormatsResponse` | `VideoService.fetchInfoWithFormats(id:)` |
 | `MoreVideoInfosResponse` | `VideoService.fetchMoreInfo(id:)` |
 | `AccountInfosResponse` | `AccountService.fetchAccountInfo()` |
@@ -163,15 +163,37 @@ If a feature seems to need data without a clear mapping above, stop and ask befo
 
 ## 7. Playback pipeline (critical)
 
-This is what the codebase actually does today, not the original v1 design. The flow has three independent tiers — playback starts from whichever tier first succeeds.
+This is what the codebase actually does today, not the original v1 design. `PlayerStateManager.resolveAndPlay` walks three stages; playback starts from the first that succeeds.
+
+### Stage 1 — local file
+
+`DownloadManager.localFile(for:)` — an earlier download (`Documents/Downloads/<videoID>.mp4`) plays straight from disk.
+
+### Stage 2 — stream (`StreamResolver`, the normal case)
+
+No file is written. Tiers, first hit wins (all results cached in `StreamURLCache`, memory only, 30 min):
+
+1. **`VISIONOS` client HLS** — `VideoService.fetchInfoViaVisionOS(id:)` on `YouTubeKitClient.visionOSModel`. Pure Swift, ~0.4 s, `hlsManifestUrl` with H.264 up to 1080p + separate audio renditions; segments play without PoT or n-cipher solving (verified 2026-11-15, AVPlayer's default `AppleCoreMedia` UA is fine). `PlayerStateManager.makeStreamItem` caps it via `AVPlayerItem.preferredMaximumResolution` to `preferredQuality`. YouTube answers **`UNPLAYABLE` for "made for kids" videos** on this client. Never call `clearSessionIfLoginRequired` for it — the request is anonymous and would sign the user out on every kids video.
+2. **yt-dlp extraction only** — `YtDlpInfoService.probe` (`extract_info(download=False)`), then the best progressive mp4 within the cap (itag 18, 360p in practice) from `tv_simply` / `web_embedded` (+ JS challenge solving). **Must be played with yt-dlp's per-format `http_headers`**: these URLs 403 under AVPlayer's default `AppleCoreMedia` UA. The UA goes in `AVURLAssetHTTPUserAgentKey` — on iOS a `User-Agent` inside `AVURLAssetHTTPHeaderFieldsKey` doesn't reach the CDN (symptom: AVPlayer error -11828 "format not supported"). A 2-byte preflight request skips dead URLs. Seconds on an iPad 7, and serialized behind any running yt-dlp download in `PythonRunner`. Skipped for prefetching.
+3. **iOS client** — `VideoService.fetchInfo` HLS or progressive (the former tier-3 fallback). Last, because it's the one tier that may wipe the session on `UNPLAYABLE`.
+
+If AVPlayer later fails on a streamed item (`AVPlayerItem.status == .failed`), `handleStreamFailure` invalidates the cached URL and falls through to stage 3 once, resuming at the failed position.
+
+"Save videos while playing" (`UserPreferences.saveWhilePlaying`, default off) additionally starts a background `DownloadManager.startDownload` for every streamed video.
+
+### Stage 3 — download first (`DownloadManager.ensureDownloaded`)
+
+Fallback when no stream could be resolved, and the engine behind every explicit download ("Download video" in the `…` menus, playlist Download All, save-while-playing). Tier 1 / tier 2 below.
+
+**`TVHTML5_SIMPLY_EMBEDDED_PLAYER` is dead** (2026-11-15: YouTube answers "no longer supported in this application or device"), so `fetchInfoViaTVHTML5` and everything built on it (tier 2's first sub-tier) currently return nothing.
 
 ### Tier 1 — yt-dlp download (`DownloadManager.runYoutubeDLDownload`)
 
-1. User taps a video. `PlayerStateManager.resolveAndPlay` calls `DownloadManager.ensureDownloaded(video:quality:priority:)`.
+1. An explicit download, or a play tap whose stream couldn't be resolved, calls `DownloadManager.ensureDownloaded(video:quality:priority:)`.
 2. **Cache check first.** `localFile(for:)` returns immediately if the mp4 already exists in `Documents/Downloads/<videoID>.mp4`.
 3. **Network gate.** `waitForAllowedNetwork()` blocks the call until the user-allowed network is up (Wi-Fi if `wifiOnlyDownloads` is set).
-4. **Submit to PythonRunner** with priority `.high` (`.userInitiated`) for play taps, `.low` (`.background`) for prefetch / Download All.
-5. yt-dlp is invoked with a hard-coded set of player clients (`player_client=visionos,tv_simply,web_creator,mweb,web_safari,ios,android_vr;formats=missing_pot`) and the format selector `bestvideo[height<=cap][vcodec^=avc1][ext=mp4]+bestaudio[ext=m4a]/best[height<=cap][ext=mp4]/best[ext=mp4]/best` (`DownloadManager.formatString`).
+4. **Submit to PythonRunner** with priority `.high` (`.userInitiated`) for play taps, `.low` (`.background`) for explicit downloads / Download All.
+5. yt-dlp is invoked once per entry of `DownloadManager.playerClientAttempts` until one leaves a usable output: first **`visionos` alone** (needs no JS challenge solving, which saves ~5 s; fails fast for kids videos), then the full chain `visionos,tv_simply,web_creator,mweb,web_safari,ios,android_vr` (always with `formats=missing_pot`), and the format selector `bestvideo[height<=cap][vcodec^=avc1][ext=mp4]+bestaudio[ext=m4a]/best[height<=cap][ext=mp4]/best[ext=mp4]/best` (`DownloadManager.formatString`).
    - **`visionos` must stay first.** It is the only client whose split DASH streams (H.264 360p–1080p + m4a) are served without a Proof-of-Origin token, and it needs no n/sig solving. Every other client's split streams are `MISSING POT`: YouTube serves the first ~1 MB, then HTTP 403 — with 10 MB chunks that's an immediate 403. Verified 2026-11 by range requests at several file offsets. `visionos` has no progressive format, so itag 18 (360p, token-free) still comes from `tv_simply` as the fallback.
    - **`+`, never `,`, between video and audio.** `,` binds weakest in yt-dlp's grammar (`a/b/c,d` = "`a/b/c` *and also* `d`"): the old selector always picked progressive 360p plus a useless separate audio download. With `+` and no ffmpeg (step 6) yt-dlp writes both legs as `<id>.<v>+<a>.f<v>.mp4` / `.f<a>.m4a`; the Swift mux in step 8 joins them. If only one leg lands, the result is discarded (no silent video) and tier 2 runs.
    - **`vcodec^=avc1`:** AV1 (itags 394–399) has no hardware decoder before A17/M3 (e.g. iPad 7), and AVPlayer can't play VP9/WebM.
@@ -189,30 +211,20 @@ Reached when tier 1 returns no file (PoT-locked content, n-cipher failures, 403s
    - If TVHTML5 returns zero usable URLs (cipher-protected), `VideoService.fetchInfoWithFormats(id:)` triggers YouTubeKit's player.js scrape. This is increasingly fragile — YouTube has been breaking the `n` decoder regex and we frequently see `"Could not get n-parameter function."` here.
 2. **Strategy 1 — progressive** (`pickBestProgressive`): pick itag 18 or similar with `containsBothTracks`. Download as single mp4 via `URLSession.bytes(for:)`. No mux needed.
 3. **Strategy 2 — adaptive**: `pickBestVideoOnly` + `pickBestAudioOnly`, download both, mux with in-process `FFmpegRunner` using `ffmpeg -c copy -movflags +faststart`.
-4. If neither strategy finds usable formats, throw `streamExtractionFailed` — tier 1 + 2 fail and we hand off to tier 3.
+4. If neither strategy finds usable formats, throw `streamExtractionFailed` — the player shows the error.
 
-### Tier 3 — streaming-only fallback (`PlayerStateManager.resolveStreamingURL`)
+### (Former tier 3)
 
-Reached when `ensureDownloaded` throws. **Produces no local file** — AVPlayer streams a remote URL directly.
-
-Walks four sub-tiers, returns first hit:
-1. iOS-client HLS master playlist URL (from `VideoService.fetchInfo`)
-2. iOS-client progressive MP4 URL (highest format with `containsBothTracks` within `preferredQuality.heightCap`)
-3. TVHTML5-client HLS
-4. TVHTML5-client progressive MP4
-
-If all four miss, `loadState = .failed` and the user sees an error toast.
+The old streaming-only fallback (`resolveStreamingURL`) is now `StreamResolver` tier 3 (iOS client) in stage 2.
 
 ### Trade-offs
 
-| | Tier 1 (yt-dlp) | Tier 2 (YouTubeKit) | Tier 3 (streaming) |
-|---|---|---|---|
-| Produces file | Yes | Yes | No |
-| Persists to `DownloadedVideo` | Yes | Yes | No |
-| Offline playback | Yes | Yes | No |
-| Works for PoT-locked content | No | No | Often yes (HLS) |
-| Quality | Up to the setting (720p default, via `visionos` split streams) | 360p progressive, or split if URLs work | Adaptive |
-| Latency (cold) | ~10–15s on iPad 7 (extraction + download + mux) | ~2–5s | ~1–2s |
+| | Stream (stage 2) | Download (stage 3) |
+|---|---|---|
+| Produces file | No (unless save-while-playing) | Yes |
+| Offline playback | No | Yes |
+| Start latency | ~1 s (visionos), several s (kids content via yt-dlp) | whole download + mux first |
+| Storage | none | counts towards `downloadCacheLimit` (default 1 GB) |
 
 ### Shape
 
@@ -263,21 +275,22 @@ enum PlaybackSource {
 
 ### User-initiated (Download button)
 
-- `DownloadManager.ensureDownloaded(video:quality:priority: .background)` from the explicit Download button in the player menu.
-- Files go to `Documents/Downloads/<videoID>.mp4` and are tracked in SwiftData as `DownloadedVideo`.
+- "Download video" in every `…` menu (`VideoMoreActionsMenu`, full-screen player) → `DownloadManager.startDownload(_:)` → `ensureDownloaded(video:quality:priority: .background)`. Shows "Downloading…" while `isDownloading(videoID:)`.
+- Files go to `Documents/Downloads/<videoID>.mp4` and are tracked via xattr metadata (`DownloadsStore`).
 - Visible in the Downloads screen, playable offline.
 
-### Playback-side download (the implicit case)
+### Playback-side download
 
-- Same `ensureDownloaded` call, priority `.userInitiated`, fired by `PlayerStateManager.resolveAndPlay` whenever a user taps Play.
-- This is why every successful playback also produces an offline file — the player's "fetch" *is* a download. Quirk of the architecture, intentional, makes the Downloads tab self-populate as the user watches.
-- Next-up prefetch: `prefetchNextUpcoming()` fires `ensureDownloaded` for the next queue item at `.background` priority. Just one — we don't chain a long preload that would block user taps behind the `PythonRunner` queue.
+- **Off by default** — playback streams (§7 stage 2) and leaves no file. Only when no stream resolves does the player download first (`.userInitiated`).
+- "Save videos while playing" (`saveWhilePlaying`) restores a self-populating Downloads tab: every streamed video is also downloaded in the background.
+- Next-up prefetch (`prefetchNextUpcoming`, gated by `prefetchNextInQueue`): resolves just the next queue item's stream into `StreamURLCache` (Swift tiers only — no Python), or downloads it when save-while-playing is on.
 
 ### PythonRunner priority queue
 
 - **`.high` / `.userInitiated`** — play taps. Jumps the line.
-- **`.low` / `.background`** — Download All, queue prefetch.
-- Within priority: FIFO. Cannot preempt the currently-running yt-dlp (Python has no safe interrupt point).
+- **`.low` / `.background`** — Download All, explicit downloads, save-while-playing.
+- `runIsolated` (yt-dlp `extract_info`, i.e. stage-2 tier 2 for kids content) always runs at `.high`.
+- Within priority: FIFO. Cannot preempt the currently-running yt-dlp from outside (Python has no safe interrupt point) — **cancellation** (✕ in the transfer queue) goes through `DownloadCancellation`: yt-dlp's progress hook raises `yt_dlp.utils.DownloadCancelled` (`makeCancellableProgressHook`), queued jobs are skipped before start, partial files are deleted.
 - This is the fix for "user taps a video while a 50-item playlist Download All is in flight" — without the priority lane the user waits behind the entire batch.
 
 ### Network gate
@@ -291,7 +304,7 @@ enum PlaybackSource {
 
 ### Cache limit
 
-- `UserPreferences.downloadCacheLimitBytes` — when exceeded, oldest `DownloadedVideo` rows by `downloadedAt` get evicted along with their files.
+- `UserPreferences.downloadCacheLimit` (500 MB / 1 GB default / 5 / 10 / unlimited) — when exceeded, the oldest downloads get evicted along with their files.
 
 ---
 
@@ -361,7 +374,7 @@ A plain serial actor isn't enough either: actor methods only guarantee one *body
 
 ### 15.2 FFmpegRunner — ffmpeg C library serialization
 
-`FFmpegSupport.ffmpeg(_:)` is not thread-safe. The `+faststart` post-pass walks global I/O buffers and crashes with `EXC_BAD_ACCESS` on concurrent calls. `setjmp`/`longjmp` in the Hook.m shim has undefined behavior across concurrent calls. Fix: `FFmpegRunner.shared.run(args)` serializes all ffmpeg calls through a chained `Task` FIFO. **Every** ffmpeg invocation goes through this actor.
+`FFmpegSupport.ffmpeg(_:)` is not thread-safe. The `+faststart` post-pass (no longer used — it doubled mux time for no benefit on local files) walked global I/O buffers and crashed with `EXC_BAD_ACCESS` on concurrent calls. `setjmp`/`longjmp` in the Hook.m shim has undefined behavior across concurrent calls. Fix: `FFmpegRunner.shared.run(args)` serializes all ffmpeg calls through a chained `Task` FIFO. **Every** ffmpeg invocation goes through this actor.
 
 ### 15.3 yt-dlp's ffmpeg merger hangs on iOS
 
@@ -376,7 +389,7 @@ YouTube has been enforcing Proof-of-Origin Tokens and rotating the `n`-parameter
 
 **N-cipher: solved in-process via JavaScriptCore.** See §15.11 — `PythonJSBridge` fakes a `deno` runtime to yt-dlp using `JSContext`, and ships `yt-dlp-ejs` solver scripts in `Resources/`. The "n challenge solving failed" warnings should no longer fire for normal videos. The solver bundle (`yt-dlp-ejs 0.8.0`) needs re-pulling when YouTube rotates the cipher faster than yt-dlp's vendored regexes can match.
 
-**PoT: still unsolved.** Proof-of-Origin Tokens require attesting to YouTube via a Play Integrity / DroidGuard / WidevineCDM challenge — not something a JS runtime alone can answer. Tier 3 streaming (HLS or direct progressive URL from `VideoInfosResponse`) remains the user-facing safety net for PoT-locked content (typically kids/family videos, some music labels).
+**PoT: still unsolved.** Proof-of-Origin Tokens require attesting to YouTube via a Play Integrity / DroidGuard / WidevineCDM challenge — not something a JS runtime alone can answer. Streaming (§7 stage 2 — yt-dlp's progressive itag 18 with its `http_headers`, or iOS-client HLS) remains the user-facing safety net for PoT-locked content (typically kids/family videos, some music labels).
 
 ### 15.5 AVQueuePlayer + `replaceCurrentItem` is a no-op when queue is empty
 
@@ -513,11 +526,11 @@ If asked to "make it more robust" or "production-ready", point to these realitie
 
 - YouTube can change its internal API at any time and silently break extraction. There is no SLA.
 - Cookies expire (typically 1-2 weeks of inactivity); the user will need to re-login.
-- N-cipher-locked content downloads in-process via the JSCore bridge (§15.11). PoT-locked content (Play Integrity attestation, not solvable by a JS runtime) still **cannot be downloaded** and falls through to tier 3 streaming. Kids/family content is the usual PoT offender.
+- N-cipher-locked content downloads in-process via the JSCore bridge (§15.11). PoT-locked content (Play Integrity attestation, not solvable by a JS runtime) often **cannot be downloaded** at higher qualities; it streams via §7 stage 2 (360p progressive). Kids/family content is the usual PoT offender.
 - yt-dlp's HLS downloader needs ffmpeg, which is blocked by §15.3 — yt-dlp picking an HLS-only format fails on iOS. Tier 2/3 take over.
 - IP-level rate limiting from YouTube can hit users on shared networks (CGNAT, VPN). No client-side fix.
 - This codebase intentionally does not implement App Store evasion techniques. Sideload distribution is the assumption.
-- Variant selection in tier 3 HLS streaming honors `preferredQuality.heightCap` only when AVPlayer's adaptive bitrate logic agrees; we don't pre-pick a variant.
+- HLS streaming caps resolution with `preferredMaximumResolution` (from `preferredQuality`); below that cap AVPlayer's adaptive bitrate logic picks the variant, we don't pre-pick one.
 
 ---
 

@@ -32,6 +32,9 @@ protocol VideoServicing: Sendable {
     /// as `fetchInfo`, but the returned per-format URLs aren't PoT-protected. Used by the resolver
     /// as a fallback when the iOS client gives us only PoT-locked adaptive streams.
     func fetchInfoViaTVHTML5(id: String) async throws -> VideoInfo
+    /// Fetch using the `VISIONOS` client. Its `streamingURL` (HLS master playlist) plays in
+    /// `AVPlayer` without PoT or n-cipher solving — the fast path of `StreamResolver`.
+    func fetchInfoViaVisionOS(id: String) async throws -> VideoInfo
 }
 
 /// Wraps `VideoInfosResponse`, `VideoInfosWithDownloadFormatsResponse`, `MoreVideoInfosResponse`.
@@ -77,6 +80,29 @@ final class VideoService: VideoServicing {
         } catch {
             log.error("fetchInfo[TVHTML5] FAILED id=\(id, privacy: .public): \(String(describing: error), privacy: .public)")
             throw YouTubeServiceError.network(error)
+        }
+    }
+
+    /// `VideoInfosResponse` via the `VISIONOS` client (`YouTubeKitClient.visionOSModel`).
+    /// Throws for "made for kids" videos (`UNPLAYABLE` on this client).
+    ///
+    /// **Deliberately no `clearSessionIfLoginRequired`:** the request is anonymous, so an
+    /// `UNPLAYABLE` / `LOGIN_REQUIRED` here says nothing about the user's cookies — wiping
+    /// the session would sign the user out on every kids video.
+    func fetchInfoViaVisionOS(id: String) async throws -> VideoInfo {
+        log.info("fetchInfo[VISIONOS] start id=\(id, privacy: .public)")
+        await client.ensureVisitorData()
+        do {
+            let response = try await VideoInfosResponse.sendThrowingRequest(
+                youtubeModel: client.visionOSModel,
+                data: [.query: id]
+            )
+            let info = Self.videoInfo(from: response, id: id, recommended: [])
+            log.info("fetchInfo[VISIONOS] ok id=\(id, privacy: .public) hls=\(info.streamingURL != nil, privacy: .public)")
+            return info
+        } catch {
+            log.notice("fetchInfo[VISIONOS] FAILED id=\(id, privacy: .public): \(String(describing: error), privacy: .public)")
+            throw YouTubeServiceError.streamExtractionFailed
         }
     }
 

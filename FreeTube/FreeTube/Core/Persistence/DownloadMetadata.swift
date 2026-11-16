@@ -35,4 +35,8 @@ struct DownloadMetadata: Codable, Sendable {
     /// header read per row on every body re-evaluation, which was the dominant source of
     /// scroll lag with large libraries.
     let duration: TimeInterval?
+    /// Video quality as a "p" number (720 for 720p), read at write time like `duration`.
+    /// Optional in the plist, so files written before it existed still decode; the scan
+    /// reads those from the file instead.
+    var videoHeight: Int? = nil
 }

@@ -34,7 +34,7 @@ struct RootView: View {
     private var activeDownloadsCount: Int {
         downloads.activeTasks.filter { snapshot in
             switch snapshot.state {
-            case .queued, .downloading, .paused: return true
+            case .queued, .downloading, .processing, .paused: return true
             case .completed, .failed: return false
             }
         }.count

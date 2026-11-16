@@ -69,6 +69,7 @@ struct ChannelTabScreen: View {
                         videos: videos,
                         columns: columns,
                         compactWhenSingleColumn: true,
+                        showsMoreMenu: true,
                         onTap: { player.load($0) },
                         onItemAppear: { prefetchIfNeeded(currentIndex: $0, total: videos.count) }
                     )

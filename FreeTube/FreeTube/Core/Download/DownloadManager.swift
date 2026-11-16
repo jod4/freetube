@@ -2,6 +2,7 @@ import AVFoundation
 import CoreMedia
 import FFmpegSupport
 import Foundation
+import Kingfisher
 import Network
 import OSLog
 import PythonKit
@@ -79,14 +80,21 @@ actor PythonRunner {
     func run(argv: [String],
              progress: @escaping @Sendable ([String: PythonObject]) -> Void,
              log ytLog: @escaping @Sendable (String, String) -> Void,
-             priority: Priority = .low) async throws {
+             priority: Priority = .low,
+             isCancelled: @escaping @Sendable () -> Bool = { false }) async throws {
         log.info("[PythonRunner.run] enqueue priority=\(String(describing: priority), privacy: .public) argv0=\(argv.first ?? "?", privacy: .public)")
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             let log = self.log
             let job: Job = {
+                // Cancelled while still queued — don't start Python at all.
+                if isCancelled() {
+                    log.info("[PythonRunner.run] job cancelled before start")
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
                 log.info("[PythonRunner.run] job starting freetube_yt_dlp")
                 do {
-                    try await freetube_yt_dlp(argv: argv, progress: progress, log: ytLog)
+                    try await freetube_yt_dlp(argv: argv, progress: progress, log: ytLog, isCancelled: isCancelled)
                     log.info("[PythonRunner.run] job completed")
                     continuation.resume()
                 } catch {
@@ -376,11 +384,31 @@ final class DownloadManager: TemporaryDownloading {
 
         let task = Task<URL, Error> { @MainActor [weak self] in
             guard let self else { throw YouTubeServiceError.unknown(NSError(domain: "DownloadManager", code: -1)) }
-            defer { self.inflight[video.id] = nil }
+            defer {
+                self.inflight[video.id] = nil
+                DownloadCancellation.shared.clear(videoID: video.id)
+            }
             return try await self.runYoutubeDLDownload(video: video, quality: quality, priority: priority)
         }
         inflight[video.id] = task
         return try await task.value
+    }
+
+    /// Fire-and-forget download at the user's preferred quality and `.background` priority —
+    /// the "Download video" menu action and "Save videos while playing". No-op when the file
+    /// already exists or a download for it is in flight. Failures surface in the Downloads tab.
+    func startDownload(_ video: Video) {
+        guard localFile(for: video.id) == nil, inflight[video.id] == nil else { return }
+        let quality = preferences.preferredQuality
+        Task { [weak self] in
+            _ = try? await self?.ensureDownloaded(video: video, quality: quality, priority: .background)
+        }
+    }
+
+    /// True while a download for this video is queued or running. Cheap dictionary lookup —
+    /// safe to call from `Menu` bodies (CLAUDE.md §15.10).
+    func isDownloading(videoID: String) -> Bool {
+        inflight[videoID] != nil
     }
 
     /// Removes the downloaded file (if any) plus its SwiftData row. Safe to call when nothing is on
@@ -395,13 +423,24 @@ final class DownloadManager: TemporaryDownloading {
         log.info("Deleted download \(videoID, privacy: .public)")
     }
 
+    /// Cancels a queued or running download (✕ in the Downloads transfer queue).
+    ///
+    /// Marks the video in `DownloadCancellation`, which the running yt-dlp sees on its next
+    /// progress callback (it raises `DownloadCancelled` and stops) and which a still-queued
+    /// `PythonRunner` job checks before starting. `runYoutubeDLDownload` then deletes the
+    /// partial files and throws. The `inflight` entry stays until that wind-down finishes, so
+    /// a re-download can't race the old one on the same files; `publish` drops any late
+    /// progress for the video so the row doesn't reappear.
     func cancel(taskID: String) {
         guard let snapshot = tasks[taskID] else { return }
+        log.info("cancel(\(snapshot.videoID, privacy: .public))")
         tasks[taskID] = nil
+        progressByVideoID.removeValue(forKey: snapshot.videoID)
+        phaseByVideoID.removeValue(forKey: snapshot.videoID)
         publishSnapshots()
-        if let task = inflight[snapshot.videoID] {
-            task.cancel()
-            inflight[snapshot.videoID] = nil
+        if inflight[snapshot.videoID] != nil {
+            DownloadCancellation.shared.cancel(videoID: snapshot.videoID)
+            inflight[snapshot.videoID]?.cancel()
         }
     }
 
@@ -494,7 +533,7 @@ final class DownloadManager: TemporaryDownloading {
         // honestly report "No video formats found" — the bottleneck was never cookie auth, it
         // was the JS-runtime-less n-cipher (CLAUDE.md §15.4). See `makeTemporaryCookiesFile`
         // doc-comment for the longer history of this experiment.
-        let argv: [String] = [
+        let makeArgv: (String) -> [String] = { [preferences] playerClients in [
             "https://www.youtube.com/watch?v=\(video.id)",
             "-f", formatString,
             "-o", outputTemplate,
@@ -529,8 +568,11 @@ final class DownloadManager: TemporaryDownloading {
             // edge; the ones that do 403 fall through to the next client. Without this flag we
             // had `"...formats require a GVS PO Token which was not provided. They will be
             // skipped..."` in the log for every client we tried, leaving zero usable formats.
+            //
+            // The list itself comes from `Self.playerClientAttempts` — see there for why the
+            // first attempt is `visionos` alone.
             "--extractor-args",
-            "youtube:player_client=visionos,tv_simply,web_creator,mweb,web_safari,ios,android_vr;formats=missing_pot",
+            "youtube:player_client=\(playerClients);formats=missing_pot",
             // **Concurrent fragment downloads.** For HLS/DASH streams yt-dlp downloads each
             // chunk sequentially by default — bumping this lets it fetch N fragments at once
             // over the same HTTP/2 connection. Doesn't change the total bytes pulled but cuts
@@ -546,12 +588,9 @@ final class DownloadManager: TemporaryDownloading {
             // instead of hanging in `Popen.communicate`. Our Swift-side AVAssetExportSession mux is
             // the canonical join step now.
             "--ffmpeg-location", "/dev/null/no-ffmpeg"
-        ]
+        ] }
 
-        log.info("yt-dlp[\(video.id, privacy: .public)] argv=\(argv.joined(separator: " "), privacy: .public)")
         log.debug("yt-dlp[\(video.id, privacy: .public)] → state=downloading(0)")
-        // New attempt: no transfer has started yet (see `phaseByVideoID`).
-        phaseByVideoID.removeValue(forKey: video.id)
         publish(snapshot: DownloadTaskSnapshot(
             id: snapshotID,
             videoID: video.id,
@@ -560,9 +599,7 @@ final class DownloadManager: TemporaryDownloading {
             createdAt: .now
         ))
 
-        do {
-            log.info("yt-dlp[\(video.id, privacy: .public)] invoking yt_dlp() — first launch triggers Python module download (serialized on dedicated thread via PythonRunner)")
-            try await PythonRunner.shared.run(argv: argv, progress: { [weak self] dict in
+        let progressHandler: @Sendable ([String: PythonObject]) -> Void = { [weak self] dict in
                 guard let self else { return }
                 // CRITICAL: PythonKit's `PythonObject` is reference-counted on Python's GIL thread.
                 // If we capture the `[String: PythonObject]` dict into a `Task { @MainActor in ... }`
@@ -599,7 +636,8 @@ final class DownloadManager: TemporaryDownloading {
                         videoTitle: videoTitle
                     )
                 }
-            }, log: { [weak self, log] level, message in
+            }
+        let logHandler: @Sendable (String, String) -> Void = { [weak self, log] level, message in
                 // Bridge yt-dlp's Python logger to os_log so its diagnostics show up alongside ours.
                 // Levels we get: debug / info / warning / error.
                 if level == "error" {
@@ -618,9 +656,53 @@ final class DownloadManager: TemporaryDownloading {
                         self?.progressByVideoID.removeValue(forKey: id)
                     }
                 }
-            }, priority: priority == .userInitiated ? .high : .low)
-        } catch {
-            log.error("yt-dlp[\(video.id, privacy: .public)] threw: \(String(describing: error), privacy: .public)")
+            }
+
+        // Run yt-dlp once per client list in `playerClientAttempts` until one attempt leaves
+        // a usable output on disk (both legs of a split download, or one progressive file).
+        var intermediates: [URL] = []
+        var ytDlpSucceeded = false
+        let videoID = video.id
+        let isCancelled: @Sendable () -> Bool = { DownloadCancellation.shared.isCancelled(videoID: videoID) }
+        for playerClients in Self.playerClientAttempts {
+            if isCancelled() { break }
+            let argv = makeArgv(playerClients)
+            log.info("yt-dlp[\(video.id, privacy: .public)] argv=\(argv.joined(separator: " "), privacy: .public)")
+            // New attempt: no transfer has started yet (see `phaseByVideoID`).
+            phaseByVideoID.removeValue(forKey: video.id)
+            do {
+                try await PythonRunner.shared.run(
+                    argv: argv,
+                    progress: progressHandler,
+                    log: logHandler,
+                    priority: priority == .userInitiated ? .high : .low,
+                    isCancelled: isCancelled
+                )
+            } catch {
+                log.notice("yt-dlp[\(video.id, privacy: .public)] clients=\(playerClients, privacy: .public) threw: \(String(describing: error), privacy: .public)")
+            }
+            intermediates = await Self.scanIntermediates(in: downloadsDir, stem: stem, excluding: destination)
+            if isCancelled() { break }
+            if Self.isUsableOutput(intermediates) {
+                ytDlpSucceeded = true
+                break
+            }
+            log.notice("yt-dlp[\(video.id, privacy: .public)] clients=\(playerClients, privacy: .public) left no usable output: \(intermediates.map(\.lastPathComponent).joined(separator: ", "), privacy: .public)")
+            let toRemove = intermediates
+            await Task.detached(priority: .utility) {
+                for url in toRemove { try? FileManager.default.removeItem(at: url) }
+            }.value
+            intermediates = []
+        }
+
+        if isCancelled() {
+            log.info("yt-dlp[\(video.id, privacy: .public)] cancelled — removing partial files")
+            await Self.removePartialFiles(in: downloadsDir, stem: stem)
+            throw CancellationError()
+        }
+
+        if !ytDlpSucceeded {
+            log.error("yt-dlp[\(video.id, privacy: .public)] every client attempt failed")
             // **Don't fail yet** — try the YouTubeKit / TVHTML5_SIMPLY_EMBEDDED_PLAYER fallback
             // before giving up. yt-dlp's no-JS-runtime path can produce "This video is not
             // available" for entire classes of videos (kids content, PoT-gated music videos,
@@ -655,17 +737,15 @@ final class DownloadManager: TemporaryDownloading {
         }
 
         let elapsed = Date().timeIntervalSince(startedAt)
-        log.info("yt-dlp[\(video.id, privacy: .public)] returned after \(String(format: "%.1f", elapsed), privacy: .public)s — locating output files")
-
-        // yt-dlp wrote individual streams to <id>.<format_id>.<ext> (e.g. wh4YepmEtZk.135.mp4 +
-        // wh4YepmEtZk.140.m4a). Run the candidate scan off-main since `contentsOfDirectory` on a
-        // Downloads folder with hundreds of files becomes a noticeable hitch.
-        let intermediates: [URL] = await Task.detached(priority: .utility) {
-            let candidates = (try? FileManager.default.contentsOfDirectory(at: downloadsDir, includingPropertiesForKeys: nil))?
-                .filter { $0.lastPathComponent.hasPrefix("\(stem).") } ?? []
-            // Don't include the canonical destination itself in mux inputs.
-            return candidates.filter { $0.path != destination.path }
-        }.value
+        log.info("yt-dlp[\(video.id, privacy: .public)] returned after \(String(format: "%.1f", elapsed), privacy: .public)s")
+        // Mux + thumbnail + xattr still to come — tell the Downloads tab instead of sitting at 100 %.
+        publish(snapshot: DownloadTaskSnapshot(
+            id: snapshotID,
+            videoID: video.id,
+            title: video.title,
+            state: .processing,
+            createdAt: .now
+        ))
         log.debug("yt-dlp[\(video.id, privacy: .public)] candidate files: \(intermediates.map(\.lastPathComponent).joined(separator: ", "), privacy: .public)")
 
         let videoFile = intermediates.first { url in
@@ -739,6 +819,13 @@ final class DownloadManager: TemporaryDownloading {
             }
         }
 
+        // Cancelled during the mux — the finished file is unwanted too.
+        if isCancelled() {
+            log.info("yt-dlp[\(video.id, privacy: .public)] cancelled after mux — removing file")
+            await Self.removePartialFiles(in: downloadsDir, stem: stem)
+            throw CancellationError()
+        }
+
         let fileSize = (try? FileManager.default.attributesOfItem(atPath: destination.path)[.size] as? NSNumber)?.int64Value ?? 0
         log.info("yt-dlp[\(video.id, privacy: .public)] file on disk: size=\(fileSize, privacy: .public) bytes path=\(destination.path, privacy: .public)")
 
@@ -762,6 +849,52 @@ final class DownloadManager: TemporaryDownloading {
 
         log.info("yt-dlp[\(video.id, privacy: .public)] SUCCESS in \(String(format: "%.1f", elapsed), privacy: .public)s → \(destination.path, privacy: .public)")
         return destination
+    }
+
+    /// yt-dlp player-client lists, tried in order until one yields a usable file.
+    ///
+    /// 1. **`visionos` alone.** Its split streams (H.264 + m4a) need neither PoT nor n/sig
+    ///    solving, so yt-dlp skips the JS challenge solver entirely — that alone took ~5 s of
+    ///    every extraction on an iPad 7 when the full list ran. Fails fast (~1–2 s) for "made
+    ///    for kids" videos, which `visionos` reports as unplayable.
+    /// 2. **The full fallback chain** (see the argv comment in `runYoutubeDLDownload`) for
+    ///    everything `visionos` can't serve.
+    static let playerClientAttempts = [
+        "visionos",
+        "visionos,tv_simply,web_creator,mweb,web_safari,ios,android_vr"
+    ]
+
+    /// yt-dlp writes each stream to `<id>.<format_id>.<ext>` (e.g. `abc.135.mp4` +
+    /// `abc.140.m4a`). Scanned off-main: `contentsOfDirectory` on a Downloads folder with
+    /// hundreds of files is a noticeable hitch.
+    private static func scanIntermediates(in directory: URL, stem: String, excluding destination: URL) async -> [URL] {
+        await Task.detached(priority: .utility) {
+            let candidates = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil))?
+                .filter { $0.lastPathComponent.hasPrefix("\(stem).") } ?? []
+            // Don't include the canonical destination itself in mux inputs.
+            return candidates.filter { $0.path != destination.path }
+        }.value
+    }
+
+    /// Deletes everything yt-dlp / the mux left for `stem` (`<id>.*`: stream legs, `.part`
+    /// files, the muxed `<id>.mp4`). Used when a download is cancelled.
+    private static func removePartialFiles(in directory: URL, stem: String) async {
+        await Task.detached(priority: .utility) {
+            let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil))?
+                .filter { $0.lastPathComponent.hasPrefix("\(stem).") } ?? []
+            for url in files { try? FileManager.default.removeItem(at: url) }
+        }.value
+    }
+
+    /// A split (`video+audio`) download needs both legs — a lone video leg would be silent;
+    /// anything else needs at least one media file.
+    private static func isUsableOutput(_ files: [URL]) -> Bool {
+        let videoExtensions: Set<String> = ["mp4", "webm", "mkv"]
+        let audioExtensions: Set<String> = ["m4a", "mp3", "aac", "opus"]
+        let hasVideo = files.contains { videoExtensions.contains($0.pathExtension.lowercased()) }
+        let hasAudio = files.contains { audioExtensions.contains($0.pathExtension.lowercased()) }
+        let isSplit = files.contains { $0.lastPathComponent.contains("+") }
+        return isSplit ? (hasVideo && hasAudio) : (hasVideo || hasAudio)
     }
 
     /// Renders a yt-dlp progress event into a snapshot and a log line. Takes Swift primitives —
@@ -801,7 +934,8 @@ final class DownloadManager: TemporaryDownloading {
                 videoID: videoID,
                 title: videoTitle,
                 state: .downloading(progress: progress),
-                createdAt: .now
+                createdAt: .now,
+                phase: phase == "stream" ? nil : phase
             ))
         } else if status == "finished" {
             log.info("yt-dlp[\(videoID, privacy: .public)] \(phase, privacy: .public) finished — moving to next phase")
@@ -824,8 +958,8 @@ final class DownloadManager: TemporaryDownloading {
 
     private func persistDownloaded(video: Video, fileURL: URL) async {
         let size = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? NSNumber)?.int64Value ?? 0
-        let thumb = await downloadThumbnailData(url: video.thumbnailURL)
-        log.debug("persistDownloaded(\(video.id, privacy: .public)) thumb=\(thumb == nil ? "nil" : "\(thumb!.count)B", privacy: .public) size=\(size, privacy: .public)")
+        let thumb = await downloadThumbnailData(url: video.thumbnailURL, videoID: video.id)
+        log.info("persistDownloaded(\(video.id, privacy: .public)) thumb=\(thumb.map { "\($0.count)B" } ?? "nil", privacy: .public) size=\(size, privacy: .public)")
         // File-system + xattr backed (no SwiftData): the metadata travels with the file.
         // `DownloadsStore.write` compresses the thumbnail to ~10 KB JPEG and posts the
         // change notification so the Downloads tab re-renders.
@@ -850,9 +984,32 @@ final class DownloadManager: TemporaryDownloading {
         DownloadsStore.shared.enforceCacheLimit(limit)
     }
 
-    private func downloadThumbnailData(url: URL?) async -> Data? {
-        guard let url else { return nil }
-        return try? await URLSession.shared.data(from: url).0
+    /// Thumbnail bytes for the Downloads row. Sources, first usable wins:
+    ///   1. Kingfisher's cache — the feed already loaded and *decoded* this exact URL, so it
+    ///      works offline and sidesteps formats `UIImage(data:)` might not take;
+    ///   2. a plain fetch of the URL;
+    ///   3. YouTube's canonical `hqdefault.jpg`, served for every public video.
+    /// Re-encoded as JPEG so `DownloadsStore`'s compressor always gets decodable data.
+    /// Downloads from the ... menu were landing without a preview when (1)/(2) were missing.
+    private func downloadThumbnailData(url: URL?, videoID: String) async -> Data? {
+        var candidates: [URL] = []
+        if let url { candidates.append(url) }
+        if let canonical = URL(string: "https://i.ytimg.com/vi/\(videoID)/hqdefault.jpg"), canonical != url {
+            candidates.append(canonical)
+        }
+        for candidate in candidates {
+            if let result = try? await KingfisherManager.shared.retrieveImage(with: candidate),
+               let jpeg = result.image.jpegData(compressionQuality: 0.85) {
+                return jpeg
+            }
+            if let (data, response) = try? await URLSession.shared.data(from: candidate),
+               (response as? HTTPURLResponse)?.statusCode == 200,
+               let jpeg = UIImage(data: data)?.jpegData(compressionQuality: 0.85) {
+                return jpeg
+            }
+        }
+        log.notice("thumbnail: none usable for \(videoID, privacy: .public)")
+        return nil
     }
 
     // MARK: - YouTubeKit / TVHTML5 fallback
@@ -1089,7 +1246,11 @@ final class DownloadManager: TemporaryDownloading {
             "-c", "copy",
             "-map", "0:v:0",
             "-map", "1:a:0",
-            "-movflags", "+faststart",
+            // No `-movflags +faststart`: it rewrites the whole file a second time to move the
+            // moov atom to the front, which only helps progressive *streaming*. These files
+            // play locally, where moov-at-end is fine — and the pass doubled the "Processing…"
+            // time (70 s for a 656 MB file on an iPad 7). It was also the crash site that made
+            // `FFmpegRunner` serialization necessary (§15.2); the runner stays regardless.
             destination.path
         ]
         log.info("ffmpeg argv: \(args.joined(separator: " "), privacy: .public)")
@@ -1386,9 +1547,13 @@ final class DownloadManager: TemporaryDownloading {
     }
 
     private func publish(snapshot: DownloadTaskSnapshot) {
+        // Late progress / state updates of a cancelled download must not resurrect its row.
+        guard !DownloadCancellation.shared.isCancelled(videoID: snapshot.videoID) else { return }
         tasks[snapshot.id] = snapshot
         if case .downloading(let value) = snapshot.state {
             progressByVideoID[snapshot.videoID] = value
+        } else if case .processing = snapshot.state {
+            progressByVideoID.removeValue(forKey: snapshot.videoID)
         } else if case .completed = snapshot.state {
             progressByVideoID.removeValue(forKey: snapshot.videoID)
             phaseByVideoID.removeValue(forKey: snapshot.videoID)

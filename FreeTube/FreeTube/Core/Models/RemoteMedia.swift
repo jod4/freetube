@@ -66,6 +66,11 @@ struct RemoteFormat: Identifiable, Sendable, Hashable {
     /// yt-dlp's raw `protocol` string. Kept for diagnostics so future regressions ("yt-dlp
     /// added a new protocol we don't dispatch") are visible in logs.
     let rawProtocol: String
+    /// yt-dlp's per-format `http_headers` (User-Agent etc.). Required when *streaming* the
+    /// `url` outside yt-dlp: YouTube binds some signed URLs to the requesting client's UA and
+    /// answers other UAs with 403 (seen for `web_embedded` formats of "made for kids" videos).
+    /// In memory only, like the URL itself (CLAUDE.md §2.6).
+    var httpHeaders: [String: String] = [:]
 
     var hasVideo: Bool { (vcodec ?? "").lowercased() != "none" && vcodec != nil }
     var hasAudio: Bool { (acodec ?? "").lowercased() != "none" && acodec != nil }

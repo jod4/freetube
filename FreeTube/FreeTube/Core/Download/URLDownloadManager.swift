@@ -146,7 +146,7 @@ final class URLDownloadManager {
             switch state {
             case .queued: return .queued
             case .downloading(let p, _): return .downloading(progress: p ?? 0)
-            case .processing: return .downloading(progress: 0) // shows spinner-ish bar
+            case .processing: return .processing
             case .completed(let url): return .completed(url)
             case .failed(let msg): return .failed(msg)
             }

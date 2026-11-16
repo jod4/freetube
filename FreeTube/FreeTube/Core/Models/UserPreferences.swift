@@ -8,7 +8,6 @@ struct UserPreferences {
     /// combined progressive mp4 (itag 18), so downloads complete fast and skip the Swift-side
     /// ffmpeg mux step. Users can bump it higher in Settings.
     @AppStorage("preferredQuality") var preferredQualityRaw: String = VideoQuality.p360.rawValue
-    @AppStorage("alwaysDownloadBeforePlayback") var alwaysDownloadBeforePlayback: Bool = false
     /// When `true`, downloads (and playback-time fetches, since those use the same path) are
     /// allowed to run over cellular. Default is `true` — permissive — so a fresh install
     /// works out of the box on a phone without Wi-Fi. Users who pay per MB can disable this
@@ -23,11 +22,14 @@ struct UserPreferences {
     /// capturing diagnostic traces from TestFlight / sideload installs where Console.app
     /// access isn't practical. Defaults off — only a handful of users will ever flip this.
     @AppStorage("logToFile") var logToFile: Bool = false
-    /// When true (default), `PlayerStateManager` kicks off a background download of the
-    /// next queue item right after the current video starts playing — so Next-tap is
-    /// instant. Users who want to save bandwidth (or who tend not to advance through the
-    /// queue) can flip this off in Settings.
+    /// When true (default), `PlayerStateManager` prepares the next queue item right after
+    /// the current video starts — it resolves the next stream URL (memory only), or downloads
+    /// the next file when `saveWhilePlaying` is on — so Next-tap is instant.
     @AppStorage("prefetchNextInQueue") var prefetchNextInQueue: Bool = true
+    /// "Save videos while playing". Off (default): playback streams and leaves no file;
+    /// files only come from an explicit Download. On: every played video is also downloaded
+    /// in the background (the pre-streaming behaviour, minus the wait) for offline replay.
+    @AppStorage("saveWhilePlaying") var saveWhilePlaying: Bool = false
     @AppStorage("restrictedSearchMode") var restrictedSearchMode: Bool = false
     /// `UserDefaults` key for the "Show Trending tab" switch. Views bind to it directly with
     /// `@AppStorage(UserPreferences.showTrendingTabKey)` so the tab bar re-renders the moment
@@ -35,7 +37,9 @@ struct UserPreferences {
     static let showTrendingTabKey = "showTrendingTab"
     @AppStorage(UserPreferences.showTrendingTabKey) var showTrendingTab: Bool = false
     @AppStorage("appearanceMode") var appearanceModeRaw: String = AppearanceMode.system.rawValue
-    @AppStorage("downloadCacheLimit") var downloadCacheLimitRaw: String = DownloadCacheLimit.unlimited.rawValue
+    /// Default 1 GB — the iPad this was tuned for has little free storage. Only applies to
+    /// installs that never picked a limit; an explicit earlier choice stays in `UserDefaults`.
+    @AppStorage("downloadCacheLimit") var downloadCacheLimitRaw: String = DownloadCacheLimit.gb1.rawValue
     /// `--concurrent-fragments` value passed to yt-dlp. Higher values fetch more DASH/HLS chunks
     /// in parallel within a single download, cutting wall-clock time. Defaults to 4 — a good
     /// balance for cellular and consumer Wi-Fi. Values above 8 risk YouTube rate-limiting.
@@ -74,7 +78,7 @@ struct UserPreferences {
     }
 
     var downloadCacheLimit: DownloadCacheLimit {
-        get { DownloadCacheLimit(rawValue: downloadCacheLimitRaw) ?? .unlimited }
+        get { DownloadCacheLimit(rawValue: downloadCacheLimitRaw) ?? .gb1 }
         nonmutating set { downloadCacheLimitRaw = newValue.rawValue }
     }
 
@@ -133,13 +137,14 @@ struct RecentFetchURL: Codable, Hashable, Identifiable, Sendable {
 /// Caps the total on-disk size of downloaded videos. When the cache exceeds the limit after a
 /// new download lands, the oldest entries are evicted (by `downloadedAt`) until total bytes fit.
 enum DownloadCacheLimit: String, CaseIterable, Identifiable {
-    case gb1, gb5, gb10, unlimited
+    case mb500, gb1, gb5, gb10, unlimited
 
     var id: String { rawValue }
 
     /// `nil` means "no cap — keep downloading until the device runs out of storage".
     var bytes: Int64? {
         switch self {
+        case .mb500: return 500 * 1_048_576
         case .gb1: return 1 * 1_073_741_824
         case .gb5: return 5 * 1_073_741_824
         case .gb10: return 10 * 1_073_741_824
@@ -149,6 +154,7 @@ enum DownloadCacheLimit: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
+        case .mb500: return "500 MB"
         case .gb1: return "1 GB"
         case .gb5: return "5 GB"
         case .gb10: return "10 GB"

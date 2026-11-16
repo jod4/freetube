@@ -42,7 +42,8 @@ import YoutubeDL
 public nonisolated func freetube_yt_dlp(
     argv: [String],
     progress: @escaping @Sendable ([String: PythonObject]) -> Void,
-    log: @escaping @Sendable (String, String) -> Void
+    log: @escaping @Sendable (String, String) -> Void,
+    isCancelled: @escaping @Sendable () -> Bool = { false }
 ) async throws {
     let bridgeLog = AppLog(subsystem: "com.leshko.freetube", category: "FreeTubeYtDlp")
 
@@ -70,7 +71,7 @@ public nonisolated func freetube_yt_dlp(
     // returns `None` — bypassing the EJS path entirely no matter what else we patch.
     let (ydl_opts, all_urls) = try ytdlp.parseOptions(args: argv)
     ydl_opts["logger"] = makeLogger(name: "MyLogger", log)
-    ydl_opts["progress_hooks"] = [makeProgressHook(progress)]
+    ydl_opts["progress_hooks"] = [makeCancellableProgressHook(progress, isCancelled: isCancelled)]
     ydl_opts["js_runtimes"] = PythonObject(["deno": ["path": PythonJSBridge.fakeDenoPath]])
     // Writable cache dir for the preprocessed-player cache the bridge enables (see `YtDlpCache`).
     YtDlpCache.prunePreprocessedPlayers()
@@ -224,4 +225,30 @@ public nonisolated func freetube_yt_dlp_extract_info(url: String) async throws -
     let result = try ydl.extract_info.throwing.dynamicallyCall(withArguments: [url, false])
     bridgeLog.info("extract_info: extract_info call returned, handing back to caller")
     return result
+}
+
+/// yt-dlp progress hook that forwards each status dict to `progress` and aborts the download
+/// once `isCancelled()` returns true, by raising `yt_dlp.utils.DownloadCancelled` — the
+/// exception yt-dlp documents for exactly this ("raise in a progress hook to stop"). It
+/// propagates out of `ydl.download`, so the `freetube_yt_dlp` call throws.
+///
+/// Replaces the package's `makeProgressHook`, which can't signal back. Uses PythonKit's
+/// `[PythonObject]` overload (CLAUDE.md §15.11 gotcha: the single-`PythonObject` overload
+/// would hand us the first argument, not the argument list). Runs on the Python thread.
+nonisolated func makeCancellableProgressHook(
+    _ progress: @escaping @Sendable ([String: PythonObject]) -> Void,
+    isCancelled: @escaping @Sendable () -> Bool
+) -> PythonObject {
+    PythonFunction { (args: [PythonObject]) throws -> PythonConvertible in
+        if let status = args.first {
+            let dict: [String: PythonObject] = Dictionary(status) ?? [:]
+            progress(dict)
+        }
+        if isCancelled() {
+            let utils = try Python.attemptImport("yt_dlp.utils")
+            throw utils.DownloadCancelled("Cancelled by user")
+        }
+        return Python.None
+    }
+    .pythonObject
 }

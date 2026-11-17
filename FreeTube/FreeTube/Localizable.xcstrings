@@ -731,6 +731,40 @@
         }
       }
     },
+    "Add to watch list" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf die Merkliste"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to watch list"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir a Ver más tarde"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter à « À regarder plus tard »"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить в «Смотреть позже»"
+          }
+        }
+      }
+    },
     "Audio" : {
       "localizations" : {
         "de" : {
@@ -829,6 +863,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Отменено"
+          }
+        }
+      }
+    },
+    "Clear history" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verlauf löschen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear history"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Borrar historial"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effacer l’historique"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очистить историю"
+          }
+        }
+      }
+    },
+    "Clear the entire history?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gesamten Verlauf löschen?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear the entire history?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Borrar todo el historial?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effacer tout l’historique ?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очистить всю историю?"
           }
         }
       }
@@ -1449,6 +1551,40 @@
         }
       }
     },
+    "FreeTube works without an account: subscriptions, watch list and history stay on this device. Turn this on to sign in and see your YouTube history, playlists, liked videos and Watch later in the Library. Turning it off signs you out." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FreeTube funktioniert ohne Konto: Abos, Merkliste und Verlauf bleiben auf diesem Gerät. Schalte dies ein, um dich anzumelden und deinen YouTube-Verlauf, deine Playlists, Videos mit „Mag ich“ und „Später ansehen“ in der Bibliothek zu sehen. Beim Ausschalten wirst du abgemeldet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FreeTube works without an account: subscriptions, watch list and history stay on this device. Turn this on to sign in and see your YouTube history, playlists, liked videos and Watch later in the Library. Turning it off signs you out."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FreeTube funciona sin cuenta: las suscripciones, Ver más tarde y el historial se quedan en este dispositivo. Actívalo para iniciar sesión y ver en la biblioteca tu historial de YouTube, tus listas, los vídeos que te gustan y Ver más tarde de YouTube. Al desactivarlo, se cierra la sesión."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FreeTube fonctionne sans compte : abonnements, « À regarder plus tard » et historique restent sur cet appareil. Activez cette option pour vous connecter et voir dans la bibliothèque votre historique YouTube, vos playlists, vos vidéos « J’aime » et « À regarder plus tard » de YouTube. La désactiver vous déconnecte."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FreeTube работает без аккаунта: подписки, «Смотреть позже» и история хранятся на этом устройстве. Включите, чтобы войти и видеть в библиотеке историю YouTube, плейлисты, понравившиеся видео и «Смотреть позже» на YouTube. При выключении вы выйдете из аккаунта."
+          }
+        }
+      }
+    },
     "Included with video" : {
       "localizations" : {
         "de" : {
@@ -1619,6 +1755,40 @@
         }
       }
     },
+    "No history" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein Verlauf"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No history"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin historial"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun historique"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "История пуста"
+          }
+        }
+      }
+    },
     "No video streams" : {
       "localizations" : {
         "de" : {
@@ -1687,6 +1857,108 @@
         }
       }
     },
+    "Remove from history" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus dem Verlauf entfernen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from history"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar del historial"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer de l’historique"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить из истории"
+          }
+        }
+      }
+    },
+    "Remove from watch list" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Von der Merkliste entfernen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from watch list"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar de Ver más tarde"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer de « À regarder plus tard »"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить из «Смотреть позже»"
+          }
+        }
+      }
+    },
+    "Save history" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verlauf speichern"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save history"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar historial"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer l’historique"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранять историю"
+          }
+        }
+      }
+    },
     "Save videos while playing" : {
       "localizations" : {
         "de" : {
@@ -1717,6 +1989,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Сохранять видео при просмотре"
+          }
+        }
+      }
+    },
+    "See all" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle anzeigen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See all"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ver todo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tout afficher"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показать все"
           }
         }
       }
@@ -2337,6 +2643,108 @@
         }
       }
     },
+    "Use YouTube account" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YouTube-Konto verwenden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use YouTube account"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usar cuenta de YouTube"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utiliser un compte YouTube"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использовать аккаунт YouTube"
+          }
+        }
+      }
+    },
+    "Use “Add to watch list” in a video's … menu to save it for later." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit „Auf die Merkliste“ im …-Menü eines Videos merkst du es dir für später."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use “Add to watch list” in a video's … menu to save it for later."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa «Añadir a Ver más tarde» en el menú … de un vídeo para guardarlo para luego."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisez « Ajouter à “À regarder plus tard” » dans le menu … d’une vidéo pour la garder pour plus tard."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Используйте «Добавить в „Смотреть позже“» в меню … видео, чтобы сохранить его на потом."
+          }
+        }
+      }
+    },
+    "Use “Download video” in a video's … menu to save it for offline viewing." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit „Video herunterladen“ im …-Menü eines Videos speicherst du es für die Offline-Wiedergabe."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use “Download video” in a video's … menu to save it for offline viewing."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa «Descargar vídeo» en el menú … de un vídeo para guardarlo y verlo sin conexión."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisez « Télécharger la vidéo » dans le menu … d’une vidéo pour l’enregistrer et la regarder hors ligne."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Используйте «Скачать видео» в меню … видео, чтобы сохранить его для офлайн-просмотра."
+          }
+        }
+      }
+    },
     "Version read failed: %@" : {
       "localizations" : {
         "de" : {
@@ -2439,6 +2847,142 @@
         }
       }
     },
+    "Videos you watch appear here. History is stored on this device only." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hier erscheinen die Videos, die du ansiehst. Der Verlauf wird nur auf diesem Gerät gespeichert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videos you watch appear here. History is stored on this device only."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aquí aparecen los vídeos que ves. El historial solo se guarda en este dispositivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les vidéos que vous regardez apparaissent ici. L’historique est stocké uniquement sur cet appareil."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Здесь появляются просмотренные видео. История хранится только на этом устройстве."
+          }
+        }
+      }
+    },
+    "Videos you watch are listed in Library → History, on this device only. Turn off to stop recording; existing entries stay until you clear them." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Angesehene Videos erscheinen in Bibliothek → Verlauf, nur auf diesem Gerät. Ausschalten beendet die Aufzeichnung; vorhandene Einträge bleiben, bis du sie löschst."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videos you watch are listed in Library → History, on this device only. Turn off to stop recording; existing entries stay until you clear them."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los vídeos que ves aparecen en Biblioteca → Historial, solo en este dispositivo. Desactívalo para dejar de registrar; las entradas existentes se mantienen hasta que las borres."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les vidéos regardées apparaissent dans Bibliothèque → Historique, uniquement sur cet appareil. Désactivez pour arrêter l’enregistrement ; les entrées existantes restent jusqu’à ce que vous les effaciez."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Просмотренные видео отображаются в разделе «Библиотека → История», только на этом устройстве. Выключите, чтобы прекратить запись; существующие записи сохранятся, пока вы их не очистите."
+          }
+        }
+      }
+    },
+    "Watch list" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merkliste"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch list"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ver más tarde"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "À regarder plus tard"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Смотреть позже"
+          }
+        }
+      }
+    },
+    "Watch list is empty" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Merkliste ist leer"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch list is empty"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La lista Ver más tarde está vacía"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La liste « À regarder plus tard » est vide"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Список «Смотреть позже» пуст"
+          }
+        }
+      }
+    },
     "You need to sign in to do that." : {
       "localizations" : {
         "de" : {
@@ -2503,6 +3047,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Срок действия сеанса истёк. Войдите снова."
+          }
+        }
+      }
+    },
+    "YouTube account" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YouTube-Konto"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YouTube account"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuenta de YouTube"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compte YouTube"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аккаунт YouTube"
           }
         }
       }
@@ -5070,7 +5648,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mediathek"
+            "value" : "Bibliothek"
           }
         },
         "en" : {
@@ -8266,7 +8844,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Abonnements"
+            "value" : "Abos"
           }
         },
         "en" : {
@@ -8291,40 +8869,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Подписки"
-          }
-        }
-      }
-    },
-    "Tap a video to play — it will be saved here automatically." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tippe auf ein Video, um es abzuspielen — es wird hier automatisch gespeichert."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tap a video to play — it will be saved here automatically."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Toca un vídeo para reproducirlo — se guardará aquí automáticamente."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Touchez une vidéo pour la lire — elle sera enregistrée ici automatiquement."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Нажмите на видео, чтобы воспроизвести — оно автоматически сохранится здесь."
           }
         }
       }

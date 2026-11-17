@@ -8,6 +8,8 @@ struct SettingsScreen: View {
     /// Bound directly (not via the view model) so `RootView`, which reads the same key,
     /// adds/removes the tab as soon as the switch flips.
     @AppStorage(UserPreferences.showTrendingTabKey) private var showTrendingTab = false
+    @AppStorage(UserPreferences.saveWatchHistoryKey) private var saveWatchHistory = true
+    @State private var showingClearHistoryConfirmation = false
 
     /// Drives the live cache-usage line under the download cache limit picker. The store is
     /// `@Observable`, so reading `entries` here re-renders the view when downloads land or
@@ -64,6 +66,19 @@ struct SettingsScreen: View {
                     Text("Tabs")
                 } footer: {
                     Text("The Trending tab shows YouTube's video feed. When it's off, videos only appear through search, your library, and downloads.")
+                }
+
+                YouTubeAccountSettingsSection()
+
+                Section {
+                    Toggle("Save history", isOn: $saveWatchHistory)
+                    Button("Clear history", role: .destructive) {
+                        showingClearHistoryConfirmation = true
+                    }
+                } header: {
+                    Text("History")
+                } footer: {
+                    Text("Videos you watch are listed in Library → History, on this device only. Turn off to stop recording; existing entries stay until you clear them.")
                 }
 
                 Section {
@@ -206,6 +221,11 @@ struct SettingsScreen: View {
                 }
             }
             .navigationTitle("Settings")
+            .confirmationDialog("Clear the entire history?", isPresented: $showingClearHistoryConfirmation, titleVisibility: .visible) {
+                Button("Clear history", role: .destructive) {
+                    Task { await PersistenceWriter.shared.clearWatchHistory() }
+                }
+            }
             .confirmationDialog("Reset session?", isPresented: $showingResetConfirmation, titleVisibility: .visible) {
                 Button("Reset", role: .destructive) {
                     Task { await SessionManager.shared.handleExpiredSession() }

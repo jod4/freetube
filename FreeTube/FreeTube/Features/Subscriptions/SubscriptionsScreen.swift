@@ -1,8 +1,9 @@
 import SwiftUI
 import Kingfisher
 
-/// Latest videos from the user's local (account-free) subscriptions, with a horizontal strip of
-/// channel avatars on top. Pushed from the Library tab, so it has no `NavigationStack` of its own.
+/// **Subscriptions** tab: latest videos from the user's local (account-free) subscriptions,
+/// with a horizontal strip of channel avatars on top. `RootView` wraps it in the tab's
+/// `NavigationStack`; the toolbar button manages the followed channels.
 @available(iOS 17.0, *)
 struct SubscriptionsScreen: View {
     @State private var model = SubscriptionsViewModel()
@@ -46,7 +47,6 @@ struct SubscriptionsScreen: View {
         }
         .readVideoGridColumns(into: $columns)
         .navigationTitle("Subscriptions")
-        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {

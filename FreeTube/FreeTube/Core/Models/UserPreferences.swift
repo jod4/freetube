@@ -35,6 +35,16 @@ struct UserPreferences {
     /// `@AppStorage(UserPreferences.showTrendingTabKey)` so the tab bar re-renders the moment
     /// the switch flips. Default `false`: the feed is opt-in (kid-friendlier out of the box).
     static let showTrendingTabKey = "showTrendingTab"
+    /// "Use YouTube account" (Settings → YouTube account). Off by default: the app is
+    /// account-free — subscriptions, watch list and history are local. On: sign-in becomes
+    /// available, plus the YouTube library section and account-only actions (playlists,
+    /// comment rating). Turning it off signs out (cookies wiped). Bound via `@AppStorage`.
+    static let useYouTubeAccountKey = "useYouTubeAccount"
+    @AppStorage(UserPreferences.useYouTubeAccountKey) var useYouTubeAccount: Bool = false
+    /// Settings → History → "Save history": records every played video locally
+    /// (`WatchHistoryEntry`), shown in Library → History. Bound via `@AppStorage`.
+    static let saveWatchHistoryKey = "saveWatchHistory"
+    @AppStorage(UserPreferences.saveWatchHistoryKey) var saveWatchHistory: Bool = true
     @AppStorage(UserPreferences.showTrendingTabKey) var showTrendingTab: Bool = false
     @AppStorage("appearanceMode") var appearanceModeRaw: String = AppearanceMode.system.rawValue
     /// Default 1 GB — the iPad this was tuned for has little free storage. Only applies to

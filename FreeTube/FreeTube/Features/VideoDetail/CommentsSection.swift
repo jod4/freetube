@@ -13,6 +13,12 @@ struct CommentsSection: View {
         _model = State(wrappedValue: CommentsViewModel(videoID: videoID))
     }
 
+    /// Rating / replying needs a signed-in YouTube account; anonymous readers just read.
+    private var isSignedIn: Bool {
+        if case .loggedIn = AuthState.shared.status { return true }
+        return false
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
@@ -25,6 +31,7 @@ struct CommentsSection: View {
                     ForEach(Array(model.comments.enumerated()), id: \.element.id) { index, comment in
                         CommentRow(
                             comment: comment,
+                            allowsRating: isSignedIn,
                             onLike: { Task { await model.toggleLike(comment) } },
                             onDislike: { Task { await model.toggleDislike(comment) } },
                             onReply: { /* TODO: present reply sheet */ },

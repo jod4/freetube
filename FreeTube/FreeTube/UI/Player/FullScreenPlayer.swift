@@ -11,7 +11,7 @@ import Kingfisher
 struct FullScreenPlayer: View {
     @Environment(PlayerStateManager.self) private var player
     @Environment(\.modelContext) private var modelContext
-    /// Reactive list of all favorited videos so menu rendering doesn't have to fetch Core Data on
+    /// Reactive watch list (`FavoriteVideo` rows) so menu rendering doesn't have to fetch Core Data on
     /// every redraw (which was the bug DownloadsScreen had: per-row SQL on the main queue).
     @Query private var favorites: [FavoriteVideo]
 
@@ -608,20 +608,19 @@ struct FullScreenPlayer: View {
                 } label: {
                     Label("Copy URL at current time", systemImage: "clock")
                 }
-                // Favorites + add-to-playlist are auth-gated. When signed out, both actions
-                // are hidden — the YouTube endpoints they call would just throw
-                // `.notAuthenticated` and the user would see a useless error toast.
-                if isSignedIn {
-                    Divider()
-                    Button {
-                        toggleFavorite(video)
-                    } label: {
-                        if isFavorite(video) {
-                            Label("Remove from favorites", systemImage: "hand.thumbsup.fill")
-                        } else {
-                            Label("Add to favorites", systemImage: "hand.thumbsup")
-                        }
+                // Watch list is local and always available. Add-to-playlist is auth-gated:
+                // signed out, the YouTube endpoint would just throw `.notAuthenticated`.
+                Divider()
+                Button {
+                    toggleWatchList(video)
+                } label: {
+                    if isOnWatchList(video) {
+                        Label("Remove from watch list", systemImage: "bookmark.fill")
+                    } else {
+                        Label("Add to watch list", systemImage: "bookmark")
                     }
+                }
+                if isSignedIn {
                     Button {
                         addToPlaylistVideo = video
                     } label: {
@@ -660,8 +659,8 @@ struct FullScreenPlayer: View {
         }
     }
 
-    /// True when `AuthState` reports a logged-in session. Drives auth-gated visibility of the
-    /// "Add to favorites" and "Add to playlist" menu items.
+    /// True when `AuthState` reports a logged-in session (only possible with "Use YouTube
+    /// account" on). Drives the auth-gated "Add to playlist" menu item.
     private var isSignedIn: Bool {
         if case .loggedIn = AuthState.shared.status { return true }
         return false
@@ -678,51 +677,25 @@ struct FullScreenPlayer: View {
             ?? URL(string: "https://youtu.be/\(video.id)")!
     }
 
-    /// O(N) check against the already-loaded `favorites` array — no Core Data per call. With
-    /// reasonable favorite counts this is effectively free, and avoids the per-menu-render SQL hit
-    /// that was lagging the UI elsewhere.
-    private func isFavorite(_ video: Video) -> Bool {
+    /// O(N) check against the already-loaded watch-list rows — no SwiftData fetch per menu render.
+    private func isOnWatchList(_ video: Video) -> Bool {
         favorites.contains(where: { $0.videoID == video.id })
     }
 
-    /// Toggles the video in the local SwiftData favorites table AND, when signed in, syncs the
-    /// change to YouTube via `LikeVideoResponse` / `RemoveLikeFromVideoResponse`. The local
-    /// store doubles as the "Liked Videos" cache for offline browsing — even after sign-out the
-    /// user can still see what they liked while signed in.
-    private func toggleFavorite(_ video: Video) {
-        let wasFavorite = favorites.contains(where: { $0.videoID == video.id })
-        if wasFavorite {
-            for existing in favorites where existing.videoID == video.id {
-                modelContext.delete(existing)
-            }
-        } else {
+    /// Adds / removes the video on the local watch list. Local only, no YouTube like.
+    private func toggleWatchList(_ video: Video) {
+        let existing = favorites.filter { $0.videoID == video.id }
+        if existing.isEmpty {
             modelContext.insert(FavoriteVideo(
                 videoID: video.id,
                 title: video.title,
                 channelName: video.channelName,
                 thumbnailURL: video.thumbnailURL
             ))
+        } else {
+            existing.forEach(modelContext.delete)
         }
         try? modelContext.save()
-
-        // Mirror to YouTube when signed in. Fire-and-forget — the local store is the source of
-        // truth for UI state, and a network failure on the YouTube side shouldn't undo the
-        // user's intent. We do log the failure for diagnostics.
-        if isSignedIn {
-            let log = AppLog(subsystem: "com.leshko.freetube", category: "FullScreenPlayer")
-            Task {
-                do {
-                    let actions: any VideoActionsServicing = VideoActionsService()
-                    if wasFavorite {
-                        try await actions.removeRating(videoID: video.id)
-                    } else {
-                        try await actions.like(videoID: video.id)
-                    }
-                } catch {
-                    log.error("[favorites] YouTube sync failed for \(video.id, privacy: .public): \(String(describing: error), privacy: .public)")
-                }
-            }
-        }
     }
 
     // MARK: - Queue toggle (right of transport)

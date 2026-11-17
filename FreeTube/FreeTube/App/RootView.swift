@@ -9,16 +9,17 @@ import UIKit
 /// Tab layout (5, or 6 with Trending):
 /// - Search (full-width search field, recent searches, results)
 /// - Trending (the YouTube video feed; hidden unless enabled in Settings → Tabs)
-/// - Library (subsumes the former Account + Subscriptions tabs; includes Favorites/Recents/Playlists/Login)
+/// - Subscriptions (the local subscriptions feed, straight away — the main use case)
+/// - Library (watch list, history, downloads + transfer queue; YouTube section only with an
+///   account; badge = active downloads)
 /// - Link (yt-dlp-powered universal downloader; pastes any link from ~2,000 supported sites)
-/// - Downloads (saved videos + live transfer queue with progress)
-/// - Settings (preferences, quality, reset-session)
+/// - Settings (preferences, YouTube account opt-in, history)
 @available(iOS 17.0, *)
 struct RootView: View {
     @Environment(PlayerStateManager.self) private var player
     @State private var selectedTab: Tab = .search
     /// Direct observation of the shared download manager — no AsyncStream subscription needed since
-    /// `DownloadManager` is itself `@Observable`. Both this view (for the badge) and `DownloadsScreen`
+    /// `DownloadManager` is itself `@Observable`. Both this view (for the badge) and `LibraryScreen`
     /// (for the list) read the same source of truth.
     @State private var downloads = DownloadManager.shared
     /// Cached thumbnail for the current video so the mini-player bar shows the actual preview instead
@@ -28,7 +29,7 @@ struct RootView: View {
     @AppStorage(UserPreferences.showTrendingTabKey) private var showTrendingTab = false
 
     enum Tab: Hashable {
-        case search, trending, library, link, downloads, settings
+        case search, trending, subscriptions, library, link, settings
     }
 
     private var activeDownloadsCount: Int {
@@ -54,20 +55,20 @@ struct RootView: View {
                     .tag(Tab.trending)
             }
 
+            NavigationStack {
+                SubscriptionsScreen()
+            }
+            .tabItem { Label("Subscriptions", systemImage: "rectangle.stack.badge.play") }
+            .tag(Tab.subscriptions)
+
             LibraryScreen()
-                .tabItem { Label("Library", systemImage: "play.square.stack") }
+                .tabItem { Label("Library", systemImage: "books.vertical") }
+                .badge(activeDownloadsCount > 0 ? activeDownloadsCount : 0)
                 .tag(Tab.library)
 
             FetchScreen()
                 .tabItem { Label("Link", systemImage: "link") }
                 .tag(Tab.link)
-
-            DownloadsScreen()
-                .tabItem {
-                    Label("Downloads", systemImage: "arrow.down.circle")
-                }
-                .badge(activeDownloadsCount > 0 ? activeDownloadsCount : 0)
-                .tag(Tab.downloads)
 
             SettingsScreen()
                 .tabItem { Label("Settings", systemImage: "gearshape.fill") }

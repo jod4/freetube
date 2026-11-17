@@ -11,8 +11,8 @@ import OSLog
 /// Auth-gating rules (per product spec):
 ///   - Open in browser, Copy URL: always shown
 ///   - Open in… : shown only when the video has a local downloaded file
-///   - Add to favorites / Remove from favorites: shown only when signed in
-///   - Add to playlist: shown only when signed in
+///   - Add to / Remove from watch list: always (local, no account)
+///   - Add to playlist: only when signed in (YouTube account enabled in Settings)
 ///   - Download video / Downloading…: shown only while there's no local file
 ///   - Remove downloaded file: shown only when the video has a local downloaded file
 @available(iOS 17.0, *)
@@ -80,17 +80,18 @@ struct VideoMoreActionsMenu: View {
         } label: {
             Label("Copy URL", systemImage: "link")
         }
-        if isSignedIn {
-            Divider()
-            Button {
-                toggleFavorite()
-            } label: {
-                if isFavorite {
-                    Label("Remove from favorites", systemImage: "hand.thumbsup.fill")
-                } else {
-                    Label("Add to favorites", systemImage: "hand.thumbsup")
-                }
+        Divider()
+        Button {
+            toggleWatchList()
+        } label: {
+            if isOnWatchList {
+                Label("Remove from watch list", systemImage: "bookmark.fill")
+            } else {
+                Label("Add to watch list", systemImage: "bookmark")
             }
+        }
+        // YouTube playlists need the account (Settings → YouTube account).
+        if isSignedIn {
             Button {
                 addToPlaylistVideo = video
             } label: {
@@ -135,19 +136,16 @@ struct VideoMoreActionsMenu: View {
         return false
     }
 
-    private var isFavorite: Bool {
-        favorites.contains { $0.videoID == video.id }
+    private var isOnWatchList: Bool {
+        !favorites.isEmpty
     }
 
-    /// Toggles the local favorite + (when signed in) fires the YouTube like/unlike sync.
-    /// Mirrors `FullScreenPlayer.toggleFavorite` so the behaviour is identical wherever the
-    /// menu appears.
-    private func toggleFavorite() {
-        let wasFavorite = isFavorite
-        if wasFavorite {
-            for existing in favorites where existing.videoID == video.id {
-                modelContext.delete(existing)
-            }
+    /// Adds / removes the video on the local watch list (Library tab). Local only — unlike the
+    /// former "favorites" it never sends a like to YouTube. One-shot insert on the main
+    /// context so the `@Query`-driven menu label flips immediately.
+    private func toggleWatchList() {
+        if isOnWatchList {
+            favorites.forEach(modelContext.delete)
         } else {
             modelContext.insert(FavoriteVideo(
                 videoID: video.id,
@@ -157,21 +155,5 @@ struct VideoMoreActionsMenu: View {
             ))
         }
         try? modelContext.save()
-
-        if isSignedIn {
-            let log = AppLog(subsystem: "com.leshko.freetube", category: "VideoMoreActionsMenu")
-            Task { [videoID = video.id] in
-                do {
-                    let actions: any VideoActionsServicing = VideoActionsService()
-                    if wasFavorite {
-                        try await actions.removeRating(videoID: videoID)
-                    } else {
-                        try await actions.like(videoID: videoID)
-                    }
-                } catch {
-                    log.error("[favorites] YouTube sync failed for \(videoID, privacy: .public): \(String(describing: error), privacy: .public)")
-                }
-            }
-        }
     }
 }

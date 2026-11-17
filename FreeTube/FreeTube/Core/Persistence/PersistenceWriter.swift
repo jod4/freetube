@@ -10,7 +10,8 @@ import SwiftData
 /// still pick up changes automatically once `save()` lands (SwiftData propagates persistent-store
 /// notifications back to the main context).
 ///
-/// **What's serialized here:** WatchHistory, FavoriteVideo, SearchHistory writes. (Downloads
+/// **What's serialized here:** WatchHistory, FavoriteVideo (= the local watch list),
+/// SearchHistory writes. (Downloads
 /// moved to file-system + xattr storage in `DownloadsStore` — no SwiftData involved.)
 /// Reads (favorite lookup, recent history, etc.) still go through SwiftUI `@Query` or the main
 /// context — those are reactive and indexed.
@@ -46,4 +47,16 @@ actor PersistenceWriter {
         try? modelContext.save()
     }
 
+    /// Settings → History → "Clear history".
+    func clearWatchHistory() {
+        try? modelContext.delete(model: WatchHistoryEntry.self)
+        try? modelContext.save()
+    }
+
+    /// Swipe-to-delete in Library → History.
+    func removeWatchHistory(videoID: String) {
+        let target = videoID
+        try? modelContext.delete(model: WatchHistoryEntry.self, where: #Predicate { $0.videoID == target })
+        try? modelContext.save()
+    }
 }

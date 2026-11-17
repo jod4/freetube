@@ -89,15 +89,17 @@ FreeTube/
 │   │                      # results), SearchSuggestionList, SearchViewModel
 │   ├── Trending/          # TrendingScreen + TrendingViewModel (HomeService feed;
 │   │                      # tab hidden unless Settings → Tabs → "Show Trending tab")
-│   ├── Subscriptions/     # SubscriptionsScreen + ViewModel
-│   ├── Library/           # LibraryScreen, HistoryScreen, SubscribedChannelsScreen, ViewModels
+│   ├── Subscriptions/     # SubscriptionsScreen (the Subscriptions tab) + ViewModel
+│   ├── Library/           # LibraryScreen (Library tab: watch list + history shelves,
+│   │                      # downloads), LibraryShelf, WatchListScreen, LocalHistoryScreen,
+│   │                      # YouTubeLibrarySection (account only) + HistoryScreen,
+│   │                      # SubscribedChannelsScreen, DownloadsViewModel, LibraryViewModel
 │   ├── Channel/           # ChannelScreen, ChannelTabScreen, ViewModel
 │   ├── Playlist/          # PlaylistScreen + ViewModel
 │   ├── VideoDetail/       # VideoDetailScreen, CommentsSection, SaveToPlaylistSheet, ViewModels
 │   ├── Account/           # AccountScreen + ViewModel
 │   ├── Login/             # LoginScreen, LoginWebView
-│   ├── Downloads/         # DownloadsScreen + ViewModel
-│   └── Settings/          # SettingsScreen + ViewModel
+│   └── Settings/          # SettingsScreen, YouTubeAccountSettingsSection + ViewModel
 ├── UI/
 │   ├── Player/            # FullScreenPlayer, PlayerSurface, DownloadProgressOverlay
 │   ├── Components/        # VideoCard, VideoRow, ChannelRow, CommentRow,
@@ -260,13 +262,16 @@ enum PlaybackSource {
 
 ## 9. Authentication flow
 
+**The YouTube account is opt-in.** The app is account-free by default — subscriptions, watch list and history are local. Settings → YouTube account → "Use YouTube account" (`UserPreferences.useYouTubeAccount`, default off) reveals sign-in (`YouTubeAccountSettingsSection`); signed in, the Library tab gains `YouTubeLibrarySection` (YouTube history, playlists, own channel, liked, Watch later), video menus gain "Add to playlist", comments gain like/reply. Turning the switch off signs out and wipes cookies. `SessionManager.bootstrap` only applies cookies with the switch on (installs signed in before the switch existed get it switched on once). Keep it working for forks, but never make a feature depend on it that has a local equivalent.
+
+
 1. `LoginScreen` presents a `WKWebView` against an **ephemeral `.nonPersistent()` `WKWebsiteDataStore`**. The ephemeral store is critical — a persistent store reuses any prior session and we'd capture stale cookies.
 2. `LoginCoordinator` watches navigation; when the URL transitions to `youtube.com` after sign-in, it calls `WKWebsiteDataStore.default().httpCookieStore.getAllCookies` and filters for `.youtube.com` / `.google.com` domains.
 3. **Cookie de-duplication:** when both `.youtube.com` and `.google.com` versions of the same cookie are present, **prefer `.youtube.com`** (`CookieStore.dedupe`). Length-based tie-breaking failed in practice — both scopes were 12 chars. YouTube-scoped cookies are the ones YouTube actually accepts.
 4. Required cookies (all must be present): `SAPISID`, `__Secure-3PAPISID`, `LOGIN_INFO`, `SID`, `HSID`, `SSID`, `APISID`.
 5. Cookies are serialized as a single Cookie-header string and stored in Keychain under `com.leshko.freetube.cookies` via `KeychainHelper`.
 6. On every app launch, `SessionManager.bootstrap()` reads from Keychain and assigns to `YouTubeModel.shared.cookies` plus `YouTubeKitClient.shared.applyCookies(...)`.
-7. **Subscriptions are account-free** (like desktop FreeTube). `SubscriptionRegistry` (`Core/Persistence/`) stores `[LocalSubscription]` (channel ID, name, handle, avatar URL, date) as JSON in `UserDefaults` (`com.leshko.freetube.subscriptions`; the legacy `[String]` ID format is migrated on load). Subscribe/unsubscribe never call YouTube, and sign-in/sign-out never touches the list. The feed (`SubscriptionService.fetchFeed`) fetches each channel's Videos tab anonymously (max 6 concurrent, 15 videos/channel, 15-min in-memory cache), sorted by the approximate age that `RelativeAgeParser` reads from YouTube's localized "3 days ago" text (en/de/es/fr/ru). `ChannelService.mapChannel` takes `isSubscribed` from the registry only. UI: Library → Subscriptions (always visible) → `SubscriptionsScreen` → `SubscribedChannelsScreen`.
+7. **Subscriptions are account-free** (like desktop FreeTube). `SubscriptionRegistry` (`Core/Persistence/`) stores `[LocalSubscription]` (channel ID, name, handle, avatar URL, date) as JSON in `UserDefaults` (`com.leshko.freetube.subscriptions`; the legacy `[String]` ID format is migrated on load). Subscribe/unsubscribe never call YouTube, and sign-in/sign-out never touches the list. The feed (`SubscriptionService.fetchFeed`) fetches each channel's Videos tab anonymously (max 6 concurrent, 15 videos/channel, 15-min in-memory cache), sorted by the approximate age that `RelativeAgeParser` reads from YouTube's localized "3 days ago" text (en/de/es/fr/ru). `ChannelService.mapChannel` takes `isSubscribed` from the registry only. UI: the Subscriptions tab (`SubscriptionsScreen`) → toolbar → `SubscribedChannelsScreen`.
 8. **`AuthState`** (an `@Observable` singleton) drives root navigation: `.loggedIn` / `.loggedOut` / `.unknown`. On `cookieExpired` / 401-equivalent failures, `SessionManager.handleExpiredSession()` wipes Keychain + sets `AuthState.loggedOut` and the root re-routes to Login.
 
 ---
@@ -311,9 +316,9 @@ enum PlaybackSource {
 ## 11. SwiftData models
 
 ```swift
-@Model class WatchHistoryEntry { videoID, title, channelName, thumbnailURL, watchedAt, lastPosition }
+@Model class WatchHistoryEntry { videoID, title, channelName, thumbnailURL, watchedAt, lastPosition, duration }   // local history (Library → History), gated by `saveWatchHistory`
 @Model class DownloadedVideo   { videoID, title, channelName, thumbnailData, fileURL, formatID, fileSize, downloadedAt }
-@Model class FavoriteVideo     { videoID, title, channelName, thumbnailURL, savedAt }
+@Model class FavoriteVideo     { videoID, title, channelName, thumbnailURL, savedAt }   // = local watch list ("Merkliste"); name kept from the old favorites to avoid a migration
 @Model class FavoritePlaylist  { playlistID, title, thumbnailURL, savedAt }
 @Model class SearchHistoryEntry { query, searchedAt }
 ```
@@ -357,7 +362,7 @@ log.error("Stream extraction failed: \(error.localizedDescription, privacy: .pub
 - `Localizable.xcstrings` (Apple String Catalog format), 250 keys, fully translated for **en / es / ru / fr / de**. `sourceLanguage: "en"`.
 - Add new strings by using `String(localized:)` / `LocalizedStringKey` in code; Xcode's build-time extractor populates the catalog. After a build, open `Localizable.xcstrings` and translate any new `state: "new"` entries.
 - **Non-translatable strings must never enter the catalog. Emit them with `Text(verbatim:)`, not a localizable `Text`.** A string whose entire content is format specifiers (`%@`, `%lld`, `%lld%%`), punctuation/symbols (`•`, `·`, `≈`, `,`), or brand names (`yt-dlp`, `freetube.io`) — with no actual words — has nothing to translate. The root cause is code: `Text("\(x) · \(n)%")` makes SwiftUI treat the literal as a `LocalizedStringKey`, so the extractor auto-adds junk keys like `%@ · %lld%%` on every build. Marking them `shouldTranslate: false` only suppresses *translation* — the key still gets re-added and clutters the catalog. **Fix at the source:** wrap these in `Text(verbatim: "...")` (for `.accessibilityLabel`, pass `Text(verbatim:)` explicitly). Then delete the orphaned keys from `Localizable.xcstrings`; once the code uses `verbatim`, the extractor won't recreate them. Keys removed this way (all now `verbatim` in code): `%@ · %lld%%` (FetchProbeView), `%lld%%` (FetchProbeView/DownloadsScreen), `≈ %@` (FetchProbeView), `• %@` (DownloadsScreen), `%lld %@ • %@` (DownloadsScreen), `%lld` (DownloadsScreen), `%@, %@` (VideoCard accessibility), `yt-dlp` (SettingsScreen header). When you write a new pure-format/symbol/brand string, reach for `Text(verbatim:)` up front so it never reaches the catalog.
-- **Never pass UI copy through a `String` parameter.** `Text(someString)` renders verbatim and skips the catalog — this is how "No downloads", the Library menu, the search prompt, etc. stayed English while their translations sat unused (marked `stale`). Reusable views/helpers take `LocalizedStringKey` (or a `Text`) for copy — see `EmptyStateView`, `SectionHeader` (`init(verbatim:)` for YouTube content), the `menuRow` helpers in `LibraryScreen` / `ChannelScreen`. Non-view code that produces display text (error descriptions, download state messages, count lines) uses `String(localized:)`. A key flagged `extractionState: "stale"` while the literal still exists in code is the tell-tale symptom.
+- **Never pass UI copy through a `String` parameter.** `Text(someString)` renders verbatim and skips the catalog — this is how "No downloads", the Library menu, the search prompt, etc. stayed English while their translations sat unused (marked `stale`). Reusable views/helpers take `LocalizedStringKey` (or a `Text`) for copy — see `EmptyStateView`, `SectionHeader` (`init(verbatim:)` for YouTube content), the `menuRow` helpers in `YouTubeLibrarySection` / `ChannelScreen`. Non-view code that produces display text (error descriptions, download state messages, count lines) uses `String(localized:)`. A key flagged `extractionState: "stale"` while the literal still exists in code is the tell-tale symptom.
 - Counts use one key per phrase with plural variations (`Text("\(n) videos")` → `%lld videos`), never a hand-built `"video" : "videos"` ternary. Abbreviated numbers go through `Int.compactFormatted` (locale-aware "1,2 Mio.").
 - Pluralization uses Apple's CLDR plural rules through the catalog's variation editor.
 - If you add a string that contains a literal source-file reference (e.g. an internal `ContentView` placeholder), use a clean user-facing value in the translation columns even if the key looks debug-ish.

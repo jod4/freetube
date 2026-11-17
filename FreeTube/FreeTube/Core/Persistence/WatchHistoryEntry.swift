@@ -34,3 +34,13 @@ final class WatchHistoryEntry {
         self.duration = duration
     }
 }
+
+@available(iOS 17.0, *)
+extension WatchHistoryEntry {
+    /// Minimal `Video` for playback and list rows; the channel ID isn't stored.
+    var asVideo: Video {
+        Video(id: videoID, title: title, channelID: "", channelName: channelName, channelThumbnailURL: nil,
+              thumbnailURL: thumbnailURL, duration: duration > 0 ? duration : nil, viewCount: nil, publishedAt: nil,
+              descriptionSnippet: nil, isLive: false, isShort: false)
+    }
+}

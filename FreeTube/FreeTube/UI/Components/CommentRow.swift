@@ -3,6 +3,9 @@ import Kingfisher
 
 struct CommentRow: View {
     let comment: Comment
+    /// Like / dislike / reply act on YouTube and need a signed-in account. Without one the like
+    /// count is shown as plain text and the other actions are hidden (translate still works).
+    var allowsRating: Bool = true
     var onLike: () -> Void = {}
     var onDislike: () -> Void = {}
     var onReply: () -> Void = {}
@@ -27,16 +30,22 @@ struct CommentRow: View {
                 Text(comment.bodyText).font(.subheadline)
 
                 HStack(spacing: 16) {
-                    Button(action: onLike) {
-                        Label { Text(verbatim: "\(comment.likeCount)") } icon: { Image(systemName: comment.isLikedByUser ? "hand.thumbsup.fill" : "hand.thumbsup") }
+                    if allowsRating {
+                        Button(action: onLike) {
+                            Label { Text(verbatim: "\(comment.likeCount)") } icon: { Image(systemName: comment.isLikedByUser ? "hand.thumbsup.fill" : "hand.thumbsup") }
+                                .labelStyle(.titleAndIcon)
+                                .font(.caption)
+                        }
+                        Button(action: onDislike) {
+                            Image(systemName: comment.isDislikedByUser ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+                                .font(.caption)
+                        }
+                        Button("Reply", action: onReply).font(.caption)
+                    } else {
+                        Label { Text(verbatim: "\(comment.likeCount)") } icon: { Image(systemName: "hand.thumbsup") }
                             .labelStyle(.titleAndIcon)
                             .font(.caption)
                     }
-                    Button(action: onDislike) {
-                        Image(systemName: comment.isDislikedByUser ? "hand.thumbsdown.fill" : "hand.thumbsdown")
-                            .font(.caption)
-                    }
-                    Button("Reply", action: onReply).font(.caption)
                     if let onTranslate {
                         Button("Translate", action: onTranslate).font(.caption)
                     }

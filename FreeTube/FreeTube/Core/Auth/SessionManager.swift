@@ -15,8 +15,23 @@ final class SessionManager {
     private init() {}
 
     /// Call exactly once during `FreeTubeApp.init` or `RootView.onAppear`.
+    ///
+    /// Cookies are only applied when "Use YouTube account" is on. Installs that were signed in
+    /// before the switch existed (key never written) get it switched on, so an update doesn't
+    /// silently sign them out; with the switch off, leftover cookies are wiped.
     func bootstrap() async {
-        if let header = store.loadHeader(), !header.isEmpty {
+        let header = store.loadHeader() ?? ""
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: UserPreferences.useYouTubeAccountKey) == nil, !header.isEmpty {
+            defaults.set(true, forKey: UserPreferences.useYouTubeAccountKey)
+            log.info("[session] bootstrap: existing sign-in → enabling \"Use YouTube account\"")
+        }
+        let accountEnabled = defaults.bool(forKey: UserPreferences.useYouTubeAccountKey)
+        if !accountEnabled, !header.isEmpty {
+            log.info("[session] bootstrap: account disabled but cookies present — wiping")
+            store.clear()
+        }
+        if accountEnabled, !header.isEmpty {
             client.applyCookies(header)
             AuthState.shared.status = .loggedIn(displayName: nil)
             log.info("[session] bootstrap: header found in keychain (length=\(header.count, privacy: .public)) → applied to client, status=.loggedIn")

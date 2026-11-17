@@ -250,6 +250,7 @@ final class PlayerStateManager {
     /// the SQL write off the main thread; @Query observers see the change automatically once the
     /// background context saves.
     private func recordWatchHistory(video: Video) {
+        guard preferences.saveWatchHistory else { return }
         let videoID = video.id
         let title = video.title
         let channelName = video.channelName

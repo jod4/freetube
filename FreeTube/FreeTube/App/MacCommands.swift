@@ -51,11 +51,11 @@ struct MacCommands: Commands {
             Button("Trending") { postTab(.trending) }
                 .keyboardShortcut("2", modifiers: .command)
                 .disabled(!showTrendingTab)
-            Button("Library") { postTab(.library) }
+            Button("Subscriptions") { postTab(.subscriptions) }
                 .keyboardShortcut("3", modifiers: .command)
-            Button("Link") { postTab(.link) }
+            Button("Library") { postTab(.library) }
                 .keyboardShortcut("4", modifiers: .command)
-            Button("Downloads") { postTab(.downloads) }
+            Button("Link") { postTab(.link) }
                 .keyboardShortcut("5", modifiers: .command)
         }
 
